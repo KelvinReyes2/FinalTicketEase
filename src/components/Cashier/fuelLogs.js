@@ -427,7 +427,6 @@ const FuelLogsPage = () => {
         Officer: userName,
         Vehicle: unit,
         fuelAmount: parseFloat(form.amount),
-        status: "done",
         timestamp: serverTimestamp(),
       });
 
