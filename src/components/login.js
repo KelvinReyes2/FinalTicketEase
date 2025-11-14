@@ -177,7 +177,7 @@ function Login() {
         // Update isLogged to true and set lastLoginTime
         await updateDoc(doc(db, "users", userDoc.id), {
           isLogged: true,
-          lastLoginTime: serverTimestamp(),
+          lastLoginTime: serverTimestamp()
         });
 
         // Log login activity
