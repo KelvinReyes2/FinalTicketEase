@@ -1,0 +1,65 @@
+[debug] [2025-11-14T10:19:03.359Z] ----------------------------------------------------------------------
+[debug] [2025-11-14T10:19:03.362Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Kelvi\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js functions:shell
+[debug] [2025-11-14T10:19:03.362Z] CLI Version:   14.14.0
+[debug] [2025-11-14T10:19:03.362Z] Platform:      win32
+[debug] [2025-11-14T10:19:03.362Z] Node Version:  v22.18.0
+[debug] [2025-11-14T10:19:03.362Z] Time:          Fri Nov 14 2025 18:19:03 GMT+0800 (Philippine Standard Time)
+[debug] [2025-11-14T10:19:03.362Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-11-14T10:19:03.530Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-11-14T10:19:03.531Z] > authorizing via signed-in user (kelvinandreiareyes@gmail.com)
+[debug] [2025-11-14T10:19:03.531Z] [iam] checking project ticketeaseapp for permissions ["firebase.projects.get"]
+[debug] [2025-11-14T10:19:03.532Z] Checked if tokens are valid: true, expires at: 1763118911250
+[debug] [2025-11-14T10:19:03.532Z] Checked if tokens are valid: true, expires at: 1763118911250
+[debug] [2025-11-14T10:19:03.533Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/ticketeaseapp:testIamPermissions [none]
+[debug] [2025-11-14T10:19:03.533Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/ticketeaseapp:testIamPermissions x-goog-quota-user=projects/ticketeaseapp
+[debug] [2025-11-14T10:19:03.533Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/ticketeaseapp:testIamPermissions {"permissions":["firebase.projects.get"]}
+[debug] [2025-11-14T10:19:04.599Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/ticketeaseapp:testIamPermissions 200
+[debug] [2025-11-14T10:19:04.599Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/ticketeaseapp:testIamPermissions {"permissions":["firebase.projects.get"]}
+[debug] [2025-11-14T10:19:04.607Z] [functions] Functions Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-11-14T10:19:04.692Z] defaultcredentials: writing to file C:\Users\Kelvi\AppData\Roaming\firebase\kelvinandreiareyes_gmail_com_application_default_credentials.json
+[debug] [2025-11-14T10:19:04.696Z] DEBUG: Setting GAC to C:\Users\Kelvi\AppData\Roaming\firebase\kelvinandreiareyes_gmail_com_application_default_credentials.json
+[debug] [2025-11-14T10:19:04.696Z] Checked if tokens are valid: true, expires at: 1763118911250
+[debug] [2025-11-14T10:19:04.696Z] Checked if tokens are valid: true, expires at: 1763118911250
+[debug] [2025-11-14T10:19:04.696Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/ticketeaseapp/adminSdkConfig [none]
+[debug] [2025-11-14T10:19:05.246Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/ticketeaseapp/adminSdkConfig 200
+[debug] [2025-11-14T10:19:05.246Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/ticketeaseapp/adminSdkConfig {"projectId":"ticketeaseapp","storageBucket":"ticketeaseapp.firebasestorage.app"}
+[debug] [2025-11-14T10:19:05.262Z] [functions] Watching "C:\Users\Kelvi\Music\TicketEase-main-UpdatedTicketease\TicketEase-main-UpdatedTicketease\functions" for Cloud Functions...
+[debug] [2025-11-14T10:19:05.266Z] Validating nodejs source
+[warn] !  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+[warn] !  functions: Please note that there will be breaking changes when you upgrade. 
+[debug] [2025-11-14T10:19:06.667Z] > [functions] package.json contents: {
+  "name": "functions",
+  "description": "Cloud Functions for Firebase",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.6.0"
+  },
+  "devDependencies": {
+    "firebase-functions-test": "^3.1.0"
+  },
+  "private": true
+}
+[debug] [2025-11-14T10:19:06.668Z] Building nodejs source
+[debug] [2025-11-14T10:19:06.668Z] Failed to find version of module node: reached end of search path C:\Users\Kelvi\Music\TicketEase-main-UpdatedTicketease\TicketEase-main-UpdatedTicketease\functions\node_modules
+[info] +  functions: Using node@22 from host. 
+[debug] [2025-11-14T10:19:06.670Z] Could not find functions.yaml. Must use http discovery
+[debug] [2025-11-14T10:19:06.675Z] Found firebase-functions binary at 'C:\Users\Kelvi\Music\TicketEase-main-UpdatedTicketease\TicketEase-main-UpdatedTicketease\functions\node_modules\.bin\firebase-functions'
+[info] Serving at port 8315
+
+[debug] [2025-11-14T10:19:07.561Z] Got response from /__/functions.yaml {"endpoints":{"disableUserAccount":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":10,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"eventTrigger":{"eventType":"google.cloud.firestore.document.v1.updated","eventFilters":{"database":"(default)","namespace":"(default)"},"eventFilterPathPatterns":{"document":"users/{userId}"},"retry":false},"entryPoint":"disableUserAccount"}},"specVersion":"v1alpha1","requiredAPIs":[],"extensions":{}}
+[debug] [2025-11-14T10:19:11.607Z] [functions] Loaded functions definitions from source: disableUserAccount.
+[debug] [2025-11-14T10:19:11.608Z] [functions[us-central1-disableUserAccount]] function ignored because the firestore emulator does not exist or is not running.
+[info] i  functions: Loaded functions: disableUserAccount 
+[warn] !  functions: The following emulators are not running, calls to these services will affect production: firestore, database, pubsub, storage, eventarc, tasks 

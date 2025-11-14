@@ -430,9 +430,6 @@ const FuelLogsPage = () => {
         timestamp: serverTimestamp(),
       });
 
-      // REMOVED: The fuelStatus update to driver document
-      // await updateDoc(driverRef, { fuelStatus: "done" });
-
       await logSystemActivity(
         `Added fuel expense: ₱${parseFloat(form.amount).toFixed(2)} for ${selectedDriver.fullName}`,
         userName
@@ -449,7 +446,6 @@ const FuelLogsPage = () => {
     }
   };
 
-  // Export functions
   const headers = [
     "ID",
     "Timestamp",
