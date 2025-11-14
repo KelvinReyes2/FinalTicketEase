@@ -4,10 +4,9 @@ import {
   Routes,
   Route,
   Navigate,
-  useLocation,
 } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 
 import { auth, db } from "./firebase";
 
@@ -41,46 +40,6 @@ import UserAccess from "./components/Super Admin/UACSuper";
 import PassRest from "./components/Super Admin/PasswordSuper";
 import Maintenance from "./components/Super Admin/MaintenanceSuper";
 
-// Component to handle tab close logic
-function TabCloseHandler({ user, children }) {
-  const location = useLocation();
-
-  useEffect(() => {
-    if (!user || !user.uid) return;
-
-    // Only run tab close detection on protected routes (not login page)
-    const isProtectedRoute = !['/', '/login'].includes(location.pathname);
-
-    if (!isProtectedRoute) return;
-
-    const handleTabClose = async () => {
-      try {
-        const ref = doc(db, "users", user.uid);
-        await updateDoc(ref, {
-          isLogged: false,
-          lastLogoutTime: serverTimestamp(),
-          tabClosed: true
-        });
-      } catch (error) {
-        console.error("Tab close logout failed:", error);
-      }
-
-      // Local storage as backup
-      localStorage.setItem('tabClosed', 'true');
-      localStorage.setItem('userId', user.uid);
-      localStorage.setItem('timestamp', Date.now().toString());
-    };
-
-    window.addEventListener('beforeunload', handleTabClose);
-    
-    return () => {
-      window.removeEventListener('beforeunload', handleTabClose);
-    };
-  }, [user, location.pathname]);
-
-  return children;
-}
-
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -101,6 +60,8 @@ function App() {
               }
             : null
         );
+
+        // Don't set isLogged here - it will be set in login.js when user actually logs in
       } else {
         setUser(null);
       }
@@ -111,60 +72,29 @@ function App() {
     return () => unsub();
   }, []);
 
-  // Check for tab closure on startup (only for logged-in users)
+  // Handle tab close/browser close - set isLogged to false
   useEffect(() => {
-    const checkTabClosure = async () => {
-      const tabClosed = localStorage.getItem('tabClosed');
-      const storedUserId = localStorage.getItem('userId');
-      
-      if (tabClosed === 'true' && storedUserId && user && user.uid === storedUserId) {
-        // Clean up the local storage
-        localStorage.removeItem('tabClosed');
-        localStorage.removeItem('userId');
-        localStorage.removeItem('timestamp');
-        
-        // Ensure user is logged out
+    const handleBeforeUnload = async () => {
+      if (user && user.uid) {
         const ref = doc(db, "users", user.uid);
+        
+        // Set isLogged to false when tab/browser closes
         await updateDoc(ref, {
           isLogged: false,
-          lastLogoutTime: serverTimestamp()
+          lastLogoutTime: new Date().toISOString()
         });
+
+        // Sign out the user
         await signOut(auth);
-        setUser(null);
       }
     };
 
-    if (user) {
-      checkTabClosure();
-    }
-  }, [user]);
+    // Add event listener for tab/window close
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
-  // Heartbeat to keep session active (only for logged-in users on protected routes)
-  useEffect(() => {
-    if (!user || !user.uid) return;
-
-    let heartbeatInterval;
-
-    const updateHeartbeat = async () => {
-      try {
-        const ref = doc(db, "users", user.uid);
-        await updateDoc(ref, {
-          lastActive: serverTimestamp(),
-          isLogged: true
-        });
-      } catch (error) {
-        console.error("Heartbeat failed:", error);
-      }
-    };
-
-    // Start heartbeat - update every 15 seconds
-    updateHeartbeat();
-    heartbeatInterval = setInterval(updateHeartbeat, 15000);
-
+    // Cleanup
     return () => {
-      if (heartbeatInterval) {
-        clearInterval(heartbeatInterval);
-      }
+      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [user]);
 
@@ -175,270 +105,268 @@ function App() {
 
   return (
     <Router>
-      <TabCloseHandler user={user}>
-        <Routes>
-          {/* Default route - shows login page */}
-          <Route path="/" element={<Login />} />
-          <Route path="/login" element={<Login />} />
+      <Routes>
+        {/* Default route - shows login page */}
+        <Route path="/" element={<Login />} />
+        <Route path="/login" element={<Login />} />
 
-          {/* Protected Layout */}
+        {/* Protected Layout */}
+        <Route
+          element={
+            <PrivateRoute
+              allowedRoles={["Admin", "Cashier", "Super"]}
+              user={user}
+              loading={loading}
+            >
+              <Layout user={user} />
+            </PrivateRoute>
+          }
+        >
+          {/* Admin Routes */}
           <Route
+            path="/dashboardAdmin"
             element={
               <PrivateRoute
-                allowedRoles={["Admin", "Cashier", "Super"]}
+                allowedRoles={["Admin"]}
+                requiredPermission="Dashboard Admin"
                 user={user}
                 loading={loading}
               >
-                <Layout user={user} />
+                <DashboardAdmin />
               </PrivateRoute>
             }
-          >
-            {/* Admin Routes */}
-            <Route
-              path="/dashboardAdmin"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Admin"]}
-                  requiredPermission="Dashboard Admin"
-                  user={user}
-                  loading={loading}
-                >
-                  <DashboardAdmin />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/unitTracking"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Admin"]}
-                  requiredPermission="Unit Tracking"
-                  user={user}
-                  loading={loading}
-                >
-                  <UnitTracking />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/userManagement"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Admin"]}
-                  requiredPermission="User Management"
-                  user={user}
-                  loading={loading}
-                >
-                  <UserManagement />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/driverDispatch"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Admin"]}
-                  requiredPermission="Driver Dispatch"
-                  user={user}
-                  loading={loading}
-                >
-                  <DriverDispatch />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/vehicleManagement"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Admin"]}
-                  requiredPermission="Vehicle Management"
-                  user={user}
-                  loading={loading}
-                >
-                  <VehicleManagement />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/Reports/transactionOverview"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Admin"]}
-                  requiredPermission="Reports"
-                  user={user}
-                  loading={loading}
-                >
-                  <TransactionOverview />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/Reports/quotaSummary"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Admin"]}
-                  requiredPermission="Reports"
-                  user={user}
-                  loading={loading}
-                >
-                  <QuotaSummary />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/Reports/tripLogs"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Admin"]}
-                  requiredPermission="Reports"
-                  user={user}
-                  loading={loading}
-                >
-                  <TripLogs />
-                </PrivateRoute>
-              }
-            />
+          />
+          <Route
+            path="/unitTracking"
+            element={
+              <PrivateRoute
+                allowedRoles={["Admin"]}
+                requiredPermission="Unit Tracking"
+                user={user}
+                loading={loading}
+              >
+                <UnitTracking />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/userManagement"
+            element={
+              <PrivateRoute
+                allowedRoles={["Admin"]}
+                requiredPermission="User Management"
+                user={user}
+                loading={loading}
+              >
+                <UserManagement />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/driverDispatch"
+            element={
+              <PrivateRoute
+                allowedRoles={["Admin"]}
+                requiredPermission="Driver Dispatch"
+                user={user}
+                loading={loading}
+              >
+                <DriverDispatch />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/vehicleManagement"
+            element={
+              <PrivateRoute
+                allowedRoles={["Admin"]}
+                requiredPermission="Vehicle Management"
+                user={user}
+                loading={loading}
+              >
+                <VehicleManagement />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/Reports/transactionOverview"
+            element={
+              <PrivateRoute
+                allowedRoles={["Admin"]}
+                requiredPermission="Reports"
+                user={user}
+                loading={loading}
+              >
+                <TransactionOverview />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/Reports/quotaSummary"
+            element={
+              <PrivateRoute
+                allowedRoles={["Admin"]}
+                requiredPermission="Reports"
+                user={user}
+                loading={loading}
+              >
+                <QuotaSummary />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/Reports/tripLogs"
+            element={
+              <PrivateRoute
+                allowedRoles={["Admin"]}
+                requiredPermission="Reports"
+                user={user}
+                loading={loading}
+              >
+                <TripLogs />
+              </PrivateRoute>
+            }
+          />
 
-            {/* Cashier Routes */}
-            <Route
-              path="/dashboardCashier"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Cashier"]}
-                  requiredPermission="View Dashboard"
-                  user={user}
-                  loading={loading}
-                >
-                  <DashboardCashier />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/fuelLogs"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Cashier"]}
-                  requiredPermission="Fuel Logs"
-                  user={user}
-                  loading={loading}
-                >
-                  <FuelLogs />
-                </PrivateRoute>
-              }
-            />
+          {/* Cashier Routes */}
+          <Route
+            path="/dashboardCashier"
+            element={
+              <PrivateRoute
+                allowedRoles={["Cashier"]}
+                requiredPermission="View Dashboard"
+                user={user}
+                loading={loading}
+              >
+                <DashboardCashier />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/fuelLogs"
+            element={
+              <PrivateRoute
+                allowedRoles={["Cashier"]}
+                requiredPermission="Fuel Logs"
+                user={user}
+                loading={loading}
+              >
+                <FuelLogs />
+              </PrivateRoute>
+            }
+          />
 
-            {/* Super Admin Routes */}
-            <Route
-              path="/dashboardSuper"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Super"]}
-                  requiredPermission="Super Dashboard"
-                  user={user}
-                  loading={loading}
-                >
-                  <DashboardSuper />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/activityLogSuper"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Super"]}
-                  requiredPermission="View Activity Log"
-                  user={user}
-                  loading={loading}
-                >
-                  <ActivityLogSuper />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/AdminManagementSuper"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Super"]}
-                  requiredPermission="Manage Admins"
-                  user={user}
-                  loading={loading}
-                >
-                  <AdminManagement />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/RouteManagementSuper"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Super"]}
-                  requiredPermission="Manage Routes"
-                  user={user}
-                  loading={loading}
-                >
-                  <RouteManagement />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/QuotaManagementSuper"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Super"]}
-                  requiredPermission="Manage Quotas"
-                  user={user}
-                  loading={loading}
-                >
-                  <QuotaManagement />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/UACSuper"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Super"]}
-                  requiredPermission="Manage User Access"
-                  user={user}
-                  loading={loading}
-                >
-                  <UserAccess />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/PasswordSuper"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Super"]}
-                  requiredPermission="Password Reset"
-                  user={user}
-                  loading={loading}
-                >
-                  <PassRest />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/MaintenanceSuper"
-              element={
-                <PrivateRoute
-                  allowedRoles={["Super"]}
-                  requiredPermission="Manage Maintenance"
-                  user={user}
-                  loading={loading}
-                >
-                  <Maintenance />
-                </PrivateRoute>
-              }
-            />
-          </Route>
+          {/* Super Admin Routes */}
+          <Route
+            path="/dashboardSuper"
+            element={
+              <PrivateRoute
+                allowedRoles={["Super"]}
+                requiredPermission="Super Dashboard"
+                user={user}
+                loading={loading}
+              >
+                <DashboardSuper />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/activityLogSuper"
+            element={
+              <PrivateRoute
+                allowedRoles={["Super"]}
+                requiredPermission="View Activity Log"
+                user={user}
+                loading={loading}
+              >
+                <ActivityLogSuper />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/AdminManagementSuper"
+            element={
+              <PrivateRoute
+                allowedRoles={["Super"]}
+                requiredPermission="Manage Admins"
+                user={user}
+                loading={loading}
+              >
+                <AdminManagement />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/RouteManagementSuper"
+            element={
+              <PrivateRoute
+                allowedRoles={["Super"]}
+                requiredPermission="Manage Routes"
+                user={user}
+                loading={loading}
+              >
+                <RouteManagement />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/QuotaManagementSuper"
+            element={
+              <PrivateRoute
+                allowedRoles={["Super"]}
+                requiredPermission="Manage Quotas"
+                user={user}
+                loading={loading}
+              >
+                <QuotaManagement />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/UACSuper"
+            element={
+              <PrivateRoute
+                allowedRoles={["Super"]}
+                requiredPermission="Manage User Access"
+                user={user}
+                loading={loading}
+              >
+                <UserAccess />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/PasswordSuper"
+            element={
+              <PrivateRoute
+                allowedRoles={["Super"]}
+                requiredPermission="Password Reset"
+                user={user}
+                loading={loading}
+              >
+                <PassRest />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/MaintenanceSuper"
+            element={
+              <PrivateRoute
+                allowedRoles={["Super"]}
+                requiredPermission="Manage Maintenance"
+                user={user}
+                loading={loading}
+              >
+                <Maintenance />
+              </PrivateRoute>
+            }
+          />
+        </Route>
 
-          {/* Forbidden + Catch-all */}
-          <Route path="/forbidden" element={<Forbidden />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </TabCloseHandler>
+        {/* Forbidden + Catch-all */}
+        <Route path="/forbidden" element={<Forbidden />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
     </Router>
   );
 }
