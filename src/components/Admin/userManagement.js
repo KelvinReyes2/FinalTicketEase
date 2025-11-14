@@ -7,7 +7,7 @@ import {
 import { Outlet, useLocation } from "react-router-dom";
 import DataTable from "react-data-table-component";
 import { FaEdit } from "react-icons/fa";
-import { query, where, getDocs } from "firebase/firestore";
+import { query, where, getDocs , updateDoc} from "firebase/firestore";
 import "jspdf-autotable";
 import { db } from "../../firebase";
 import {
@@ -54,6 +54,12 @@ export default function UserManagement() {
     return ROLE_MAPPING[role] || null;
   };
 
+  // Email validation function
+  const isValidEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   // Function to fetch user role
   const fetchUserRole = useCallback(async () => {
     if (!currentUser?.uid) {
@@ -62,9 +68,12 @@ export default function UserManagement() {
     }
 
     try {
+      
       const userDocRef = doc(db, "users", currentUser.uid);
       const userDocSnap = await getDoc(userDocRef);
-
+        await updateDoc(userDocRef, {
+                  isLogged: false,
+                });
       if (userDocSnap.exists()) {
         const userData = userDocSnap.data();
         setUserRole(userData.role || "User"); // Default to "User" if role not found
@@ -472,7 +481,11 @@ export default function UserManagement() {
     const e = {};
     if (!form.firstName.trim()) e.firstName = "Required";
     if (!form.lastName.trim()) e.lastName = "Required";
-    if (!form.email.trim()) e.email = "Required";
+    if (!form.email.trim()) {
+      e.email = "Required";
+    } else if (!isValidEmail(form.email.trim())) {
+      e.email = "Please enter a valid email address";
+    }
     if (!form.password.trim()) e.password = "Required";
     if (form.password && form.password.length < 6)
       e.password = "Min 6 characters";
@@ -1013,7 +1026,7 @@ export default function UserManagement() {
                 </label>
                 <select
                   className="w-full border rounded-md px-3 py-2 bg-gray-100 cursor-not-allowed focus:outline-none"
-                  value={form.permissions} // 👈 bind to form.permissions
+                  value={form.permissions}
                   disabled
                   multiple
                   style={{

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   getAuth,
   createUserWithEmailAndPassword,
@@ -19,6 +19,7 @@ import {
   getDocs,
   addDoc,
   getDoc,
+  updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
 import { exportToCSV, exportToPDF } from "../functions/exportFunctions";
@@ -86,6 +87,37 @@ export default function AdminManagementSuper() {
   const mapRoleForLogging = (role) => {
     return ROLE_MAPPING[role] || null;
   };
+
+  // Email validation function
+  const isValidEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Function to fetch user role
+  const fetchUserRole = useCallback(async () => {
+    if (!currentUser?.uid) {
+      setUserRole("Guest");
+      return;
+    }
+
+    try {
+      const userDocRef = doc(db, "users", currentUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      await updateDoc(userDocRef, {
+        isLogged: false,
+      });
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data();
+        setUserRole(userData.role || "User");
+      } else {
+        setUserRole("User");
+      }
+    } catch (error) {
+      console.error("Error fetching user role:", error);
+      setUserRole("User");
+    }
+  }, [currentUser?.uid]);
 
   // Function to log system activities with mapped role
   const logSystemActivity = async (activity, performedBy, role = null) => {
@@ -185,6 +217,11 @@ export default function AdminManagementSuper() {
 
     fetchCurrentUser();
   }, []);
+
+  // Fetch user role on component mount
+  useEffect(() => {
+    fetchUserRole();
+  }, [fetchUserRole]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -456,7 +493,11 @@ export default function AdminManagementSuper() {
     const e = {};
     if (!form.firstName.trim()) e.firstName = "Required";
     if (!form.lastName.trim()) e.lastName = "Required";
-    if (!form.email.trim()) e.email = "Required";
+    if (!form.email.trim()) {
+      e.email = "Required";
+    } else if (!isValidEmail(form.email.trim())) {
+      e.email = "Please enter a valid email address";
+    }
     if (!form.password.trim()) e.password = "Required";
     if (form.password && form.password.length < 6)
       e.password = "Min 6 characters";
