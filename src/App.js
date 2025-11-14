@@ -6,7 +6,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc, updateDoc , serverTimestamp} from "firebase/firestore";
+import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 
 import { auth, db } from "./firebase";
 
@@ -81,7 +81,7 @@ function App() {
         // Set isLogged to false when tab/browser closes
         await updateDoc(ref, {
           isLogged: false,
-          lastLogoutTime: serverTimestamp
+          lastLogoutTime: serverTimestamp()
         });
 
         // Sign out the user
