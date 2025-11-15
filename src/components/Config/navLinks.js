@@ -5,6 +5,9 @@ import IconUser from "../../images/Admin.png";
 import IconDriver from "../../images/Driver White.png";
 import IconVehicle from "../../images/Vehicle White.png";
 import IconReport from "../../images/Report.png";
+import IconTransaction from "../../images/transaction white.png";
+import IconQuotaSummary from "../../images/Quota Summary White.png";
+import IconTripLogs from "../../images/tripLogs White.png";
 
 import IconADashboardActive from "../../images/Dashboard Blue.png";
 import IconUnitActive from "../../images/Monitoring Blue.png";
@@ -12,6 +15,9 @@ import IconUserActive from "../../images/Admin Blue.png";
 import IconDriverActive from "../../images/Driver Blue.png";
 import IconVehicleActive from "../../images/Vehicle Blue.png";
 import IconReportActive from "../../images/Reports Blue.png";
+import IconTransactionActive from "../../images/transaction.png";
+import IconQuotaSummaryActive from "../../images/Quota Summary Blue.png";
+import IconTripLogsActive from "../../images/tripLogs Blue.png";
 
 import IconSDashboard from "../../images/Dashboard White.png";
 import IconActivity from "../../images/Activity White.png";
@@ -138,21 +144,21 @@ export const navLinks = [
         label: "Transaction Overview",
         role: "Admin",
         permission: "Reports",
-        img: { inactive: IconReport, active: IconReportActive }, // to change icon
+        img: { inactive: IconTransaction, active: IconTransactionActive}, // to change icon
       },
       {
         to: "/Reports/quotaSummary",
         label: "Quota Summary",
         role: "Admin",
         permission: "Reports",
-        img: { inactive: IconReport, active: IconReportActive }, // to change icon
+        img: { inactive: IconQuotaSummary, active: IconQuotaSummaryActive}, // to change icon
       },
       {
         to: "/Reports/tripLogs",
         label: "Trip Logs",
         role: "Admin",
         permission: "Reports",
-        img: { inactive: IconReport, active: IconReportActive }, // to change icon
+        img: { inactive: IconTripLogs, active: IconTripLogsActive}, // to change icon
       },
     ],
   },
