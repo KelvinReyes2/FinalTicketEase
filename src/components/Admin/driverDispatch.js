@@ -275,7 +275,8 @@ export default function DriverDispatch() {
           const selectedRoute = routes.find((r) => r.id === routeId);
           if (selectedRoute) routeName = selectedRoute.route;
           status = "Available";
-          particular = selections.particular || particular;
+          // Use the particular from selections if it exists, otherwise use latest log
+          particular = selections.particular || latestLog?.Particular || "Not yet selected";
         }
       }
 
@@ -378,25 +379,30 @@ export default function DriverDispatch() {
           u.vehicleID === selectedVehicle.vehicleID && u.status === "Available"
       );
 
+      // Reset particular when vehicle changes
       setDriverSelections((prev) => ({
         ...prev,
         [row.driverId]: {
           vehicleID: value,
           unitId: availableUnit?.id || null,
           serialNo: availableUnit?.serialNo || "N/A",
-          particular: row.particular,
+          particular: "", // Reset particular to empty when vehicle changes
         },
       }));
     }
 
     if (column === "particular") {
-      setDriverSelections((prev) => ({
-        ...prev,
-        [row.driverId]: {
-          ...prev[row.driverId],
-          particular: value,
-        },
-      }));
+      setDriverSelections((prev) => {
+        const currentSelection = prev[row.driverId] || {};
+        return {
+          ...prev,
+          [row.driverId]: {
+            ...currentSelection,
+            vehicleID: currentSelection.vehicleID || row.vehicleID,
+            particular: value, // Set the selected particular value
+          },
+        };
+      });
     }
   };
 
@@ -760,9 +766,11 @@ export default function DriverDispatch() {
           );
         });
 
+        const currentSelection = driverSelections[r.driverId];
+
         return (
           <select
-            value={r.vehicleID || ""}
+            value={currentSelection?.vehicleID || ""}
             onChange={(e) => handleDropdownChange(e, r, "vehicleID")}
             className="bg-white border border-gray-300 rounded-md px-2 py-1 text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
@@ -788,13 +796,16 @@ export default function DriverDispatch() {
               {r.particular || "N/A"}
             </div>
           );
+
+        const currentSelection = driverSelections[r.driverId];
         const particulars = getAllParticularsForRoute(r.routeName);
+
         return (
           <select
-            value={r.particular === "Not yet selected" ? "" : r.particular}
+            value={currentSelection?.particular || ""}
             onChange={(e) => handleDropdownChange(e, r, "particular")}
             disabled={!r.routeId}
-            className="bg-transparent border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="bg-transparent border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <option value="">Select Particular</option>
             {particulars.map((particular, idx) => (
@@ -873,8 +884,14 @@ export default function DriverDispatch() {
       button: true,
       center: true,
       width: "160px",
-      cell: (r) =>
-        r.isDispatched ? (
+      cell: (r) => {
+        const currentSelection = driverSelections[r.driverId];
+        const isDispatchDisabled = 
+          !currentSelection?.vehicleID || 
+          !currentSelection?.particular || 
+          !r.routeId;
+
+        return r.isDispatched ? (
           <button
             onClick={() => handleUndispatchClick(r)}
             className="inline-flex items-center justify-center h-9 px-3 rounded-full border bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100 hover:shadow-md text-sm font-semibold"
@@ -884,17 +901,17 @@ export default function DriverDispatch() {
         ) : (
           <button
             onClick={() => handleDispatch(r)}
-            disabled={
-              !r.vehicleID ||
-              !r.routeId ||
-              !r.particular ||
-              r.particular === "Not yet selected"
-            }
-            className={`inline-flex items-center justify-center h-9 px-3 rounded-full border text-sm font-semibold transition ${!r.vehicleID || !r.routeId || !r.particular || r.particular === "Not yet selected" ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed" : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:shadow-md"}`}
+            disabled={isDispatchDisabled}
+            className={`inline-flex items-center justify-center h-9 px-3 rounded-full border text-sm font-semibold transition ${
+              isDispatchDisabled
+                ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:shadow-md"
+            }`}
           >
             Dispatch
           </button>
-        ),
+        );
+      },
     },
   ];
 

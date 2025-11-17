@@ -85,6 +85,7 @@ const Sidebar = ({ user }) => {
         const userDocRef = doc(db, "users", currentUser.uid);
         await updateDoc(userDocRef, {
           isLogged: false,
+          lastLogoutTime: serverTimestamp()
         });
         console.log("User logged status updated to false");
 
