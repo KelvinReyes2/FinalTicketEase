@@ -232,8 +232,6 @@ export default function DriverDispatch() {
         .filter((log) => log.personnelID === driver.id)
         .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp))[0];
 
-      particular = latestLog?.Particular || "Not yet selected";
-
       const dispatchedUnit = unitData.find(
         (u) => u.unitHolder === driver.id && u.status === "Dispatched"
       );
@@ -253,6 +251,8 @@ export default function DriverDispatch() {
           const dispatchedRoute = routes.find((r) => r.id === routeId);
           if (dispatchedRoute) routeName = dispatchedRoute.route;
         }
+        
+        particular = latestLog?.Particular || "Not yet selected";
       } else if (selections.vehicleID) {
         const selectedVehicle = vehicles.find(
           (v) => v.vehicleID === selections.vehicleID
@@ -275,9 +275,17 @@ export default function DriverDispatch() {
           const selectedRoute = routes.find((r) => r.id === routeId);
           if (selectedRoute) routeName = selectedRoute.route;
           status = "Available";
-          // Use the particular from selections if it exists, otherwise use latest log
-          particular = selections.particular || latestLog?.Particular || "Not yet selected";
+          
+          // FIX: Check if particular exists in selections explicitly (not just falsy check)
+          if (selections.particular !== undefined) {
+            particular = selections.particular || "Not yet selected";
+          } else {
+            particular = latestLog?.Particular || "Not yet selected";
+          }
         }
+      } else {
+        // No vehicle selected - use latest log particular
+        particular = latestLog?.Particular || "Not yet selected";
       }
 
       return {
