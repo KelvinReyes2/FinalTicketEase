@@ -232,6 +232,8 @@ export default function DriverDispatch() {
         .filter((log) => log.personnelID === driver.id)
         .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp))[0];
 
+      particular = latestLog?.Particular || "Not yet selected";
+
       const dispatchedUnit = unitData.find(
         (u) => u.unitHolder === driver.id && u.status === "Dispatched"
       );
@@ -251,8 +253,6 @@ export default function DriverDispatch() {
           const dispatchedRoute = routes.find((r) => r.id === routeId);
           if (dispatchedRoute) routeName = dispatchedRoute.route;
         }
-        
-        particular = latestLog?.Particular || "Not yet selected";
       } else if (selections.vehicleID) {
         const selectedVehicle = vehicles.find(
           (v) => v.vehicleID === selections.vehicleID
@@ -275,17 +275,8 @@ export default function DriverDispatch() {
           const selectedRoute = routes.find((r) => r.id === routeId);
           if (selectedRoute) routeName = selectedRoute.route;
           status = "Available";
-          
-          // FIX: Check if particular exists in selections explicitly (not just falsy check)
-          if (selections.particular !== undefined) {
-            particular = selections.particular || "Not yet selected";
-          } else {
-            particular = latestLog?.Particular || "Not yet selected";
-          }
+          particular = selections.particular || particular;
         }
-      } else {
-        // No vehicle selected - use latest log particular
-        particular = latestLog?.Particular || "Not yet selected";
       }
 
       return {
@@ -387,30 +378,25 @@ export default function DriverDispatch() {
           u.vehicleID === selectedVehicle.vehicleID && u.status === "Available"
       );
 
-      // Reset particular when vehicle changes
       setDriverSelections((prev) => ({
         ...prev,
         [row.driverId]: {
           vehicleID: value,
           unitId: availableUnit?.id || null,
           serialNo: availableUnit?.serialNo || "N/A",
-          particular: "", // Reset particular to empty when vehicle changes
+          particular: row.particular,
         },
       }));
     }
 
     if (column === "particular") {
-      setDriverSelections((prev) => {
-        const currentSelection = prev[row.driverId] || {};
-        return {
-          ...prev,
-          [row.driverId]: {
-            ...currentSelection,
-            vehicleID: currentSelection.vehicleID || row.vehicleID,
-            particular: value, // Set the selected particular value
-          },
-        };
-      });
+      setDriverSelections((prev) => ({
+        ...prev,
+        [row.driverId]: {
+          ...prev[row.driverId],
+          particular: value,
+        },
+      }));
     }
   };
 
@@ -774,11 +760,9 @@ export default function DriverDispatch() {
           );
         });
 
-        const currentSelection = driverSelections[r.driverId];
-
         return (
           <select
-            value={currentSelection?.vehicleID || ""}
+            value={r.vehicleID || ""}
             onChange={(e) => handleDropdownChange(e, r, "vehicleID")}
             className="bg-white border border-gray-300 rounded-md px-2 py-1 text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
@@ -804,16 +788,13 @@ export default function DriverDispatch() {
               {r.particular || "N/A"}
             </div>
           );
-
-        const currentSelection = driverSelections[r.driverId];
         const particulars = getAllParticularsForRoute(r.routeName);
-
         return (
           <select
-            value={currentSelection?.particular || ""}
+            value={r.particular === "Not yet selected" ? "" : r.particular}
             onChange={(e) => handleDropdownChange(e, r, "particular")}
             disabled={!r.routeId}
-            className="bg-transparent border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-transparent border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">Select Particular</option>
             {particulars.map((particular, idx) => (
@@ -892,14 +873,8 @@ export default function DriverDispatch() {
       button: true,
       center: true,
       width: "160px",
-      cell: (r) => {
-        const currentSelection = driverSelections[r.driverId];
-        const isDispatchDisabled = 
-          !currentSelection?.vehicleID || 
-          !currentSelection?.particular || 
-          !r.routeId;
-
-        return r.isDispatched ? (
+      cell: (r) =>
+        r.isDispatched ? (
           <button
             onClick={() => handleUndispatchClick(r)}
             className="inline-flex items-center justify-center h-9 px-3 rounded-full border bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100 hover:shadow-md text-sm font-semibold"
@@ -909,17 +884,17 @@ export default function DriverDispatch() {
         ) : (
           <button
             onClick={() => handleDispatch(r)}
-            disabled={isDispatchDisabled}
-            className={`inline-flex items-center justify-center h-9 px-3 rounded-full border text-sm font-semibold transition ${
-              isDispatchDisabled
-                ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
-                : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:shadow-md"
-            }`}
+            disabled={
+              !r.vehicleID ||
+              !r.routeId ||
+              !r.particular ||
+              r.particular === "Not yet selected"
+            }
+            className={`inline-flex items-center justify-center h-9 px-3 rounded-full border text-sm font-semibold transition ${!r.vehicleID || !r.routeId || !r.particular || r.particular === "Not yet selected" ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed" : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:shadow-md"}`}
           >
             Dispatch
           </button>
-        );
-      },
+        ),
     },
   ];
 
