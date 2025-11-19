@@ -191,6 +191,7 @@ export default function DriverDispatch() {
         vehicleID: d.data()?.vehicleID || "",
         serialNo: d.data()?.serialNo || "",
         status: d.data()?.status || "Available",
+        particular: d.data()?.particular || null, // ADD THIS LINE - store particular in unit data
       }));
       setUnitData(temp);
     });
@@ -228,21 +229,20 @@ export default function DriverDispatch() {
       let status = "No vehicles selected";
       let isDispatched = false;
 
-      const latestLog = driverLogs
-        .filter((log) => log.personnelID === driver.id)
-        .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp))[0];
-
-      particular = latestLog?.Particular || "Not yet selected";
-
+      // FIXED: Get dispatched unit first
       const dispatchedUnit = unitData.find(
         (u) => u.unitHolder === driver.id && u.status === "Dispatched"
       );
 
       if (dispatchedUnit) {
+        // Driver is dispatched
         isDispatched = true;
         status = "Dispatched";
         unit = dispatchedUnit.id;
         serialNo = dispatchedUnit.serialNo || "N/A";
+        
+        // FIXED: Get particular from the dispatched unit itself, not from logs
+        particular = dispatchedUnit.particular || "Not yet selected";
 
         const dispatchedVehicle = vehicles.find(
           (v) => v.vehicleID === dispatchedUnit.vehicleID
@@ -254,6 +254,7 @@ export default function DriverDispatch() {
           if (dispatchedRoute) routeName = dispatchedRoute.route;
         }
       } else if (selections.vehicleID) {
+        // Driver has vehicle selected but not dispatched
         const selectedVehicle = vehicles.find(
           (v) => v.vehicleID === selections.vehicleID
         );
@@ -275,8 +276,14 @@ export default function DriverDispatch() {
           const selectedRoute = routes.find((r) => r.id === routeId);
           if (selectedRoute) routeName = selectedRoute.route;
           status = "Available";
-          particular = selections.particular || particular;
+          particular = selections.particular || "Not yet selected";
         }
+      } else {
+        // No vehicle selected - show last particular from logs as fallback
+        const latestLog = driverLogs
+          .filter((log) => log.personnelID === driver.id)
+          .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp))[0];
+        particular = latestLog?.Particular || "Not yet selected";
       }
 
       return {
@@ -422,11 +429,12 @@ export default function DriverDispatch() {
       if (!availableUnit)
         return alert("No available unit found for this vehicle.");
 
-      // Update the unit to be dispatched
+      // FIXED: Update the unit to be dispatched WITH particular
       const unitRef = doc(db, "unit", availableUnit.id);
       await updateDoc(unitRef, {
         unitHolder: row.driverId,
         status: "Dispatched",
+        particular: selections.particular, // ADD THIS LINE
       });
 
       // Add entry to unitLogs collection
@@ -436,11 +444,16 @@ export default function DriverDispatch() {
         assignedAt: serverTimestamp(),
       });
 
-      // Update local state
+      // FIXED: Update local state with particular
       setUnitData((prev) =>
         prev.map((u) =>
           u.id === availableUnit.id
-            ? { ...u, unitHolder: row.driverId, status: "Dispatched" }
+            ? { 
+                ...u, 
+                unitHolder: row.driverId, 
+                status: "Dispatched",
+                particular: selections.particular // ADD THIS LINE
+              }
             : u
         )
       );
@@ -515,13 +528,19 @@ export default function DriverDispatch() {
         return;
       }
 
+      // FIXED: Clear particular when undispatching
       const unitRef = doc(db, "unit", unitDoc.id);
-      await updateDoc(unitRef, { unitHolder: "", status: "Available" });
+      await updateDoc(unitRef, { 
+        unitHolder: "", 
+        status: "Available",
+        particular: null // ADD THIS LINE
+      });
 
+      // FIXED: Update local state clearing particular
       setUnitData((prev) =>
         prev.map((u) =>
           u.id === unitDoc.id
-            ? { ...u, unitHolder: "", status: "Available" }
+            ? { ...u, unitHolder: "", status: "Available", particular: null }
             : u
         )
       );
@@ -573,7 +592,6 @@ export default function DriverDispatch() {
       let q;
 
       if (exportStartDate && exportEndDate) {
-        // Date range: start date to end date
         const startDate = new Date(exportStartDate);
         startDate.setHours(0, 0, 0, 0);
 
@@ -587,7 +605,6 @@ export default function DriverDispatch() {
           orderBy("assignedAt", "desc")
         );
       } else if (exportStartDate && !exportEndDate) {
-        // Single day: only the start date
         const startDate = new Date(exportStartDate);
         startDate.setHours(0, 0, 0, 0);
 
@@ -601,7 +618,6 @@ export default function DriverDispatch() {
           orderBy("assignedAt", "desc")
         );
       } else {
-        // No dates selected: all logs
         q = query(collection(db, "unitLogs"), orderBy("assignedAt", "desc"));
       }
 
@@ -611,7 +627,6 @@ export default function DriverDispatch() {
       for (const docSnap of snapshot.docs) {
         const data = docSnap.data();
 
-        // Fetch full driver name if not already in the log
         let driverFullName = data.driverName || "N/A";
         if (data.unitHolder && !data.driverName) {
           try {
@@ -712,7 +727,6 @@ export default function DriverDispatch() {
     }
   };
 
-  // Helper function to get dynamic export description
   const getExportDescription = () => {
     if (exportStartDate && exportEndDate) {
       return `The report will include all unit assignments from ${new Date(exportStartDate).toLocaleDateString()} to ${new Date(exportEndDate).toLocaleDateString()}.`;
@@ -981,7 +995,6 @@ export default function DriverDispatch() {
                   <option value="Reliever">Reliever</option>
                 </select>
 
-                {/* Export Button */}
                 <button
                   onClick={openExportModal}
                   className="flex items-center gap-2 px-6 py-2 rounded-lg text-white shadow-md hover:shadow-lg transition"
@@ -1017,7 +1030,6 @@ export default function DriverDispatch() {
         </div>
       </main>
 
-      {/* Export Modal */}
       {showExportModal && (
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/40 backdrop-blur-sm p-4"
@@ -1175,7 +1187,6 @@ export default function DriverDispatch() {
         </div>
       )}
 
-      {/* Password Confirmation Modal */}
       {showPasswordModal && (
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/40 backdrop-blur-sm p-4"
@@ -1288,15 +1299,12 @@ export default function DriverDispatch() {
         </div>
       )}
 
-      {/* Success Toast */}
       {showSuccessToast && <Toast message={toastMessage} type="success" />}
-      {/* Error Toast */}
       {showErrorToast && <Toast message={toastMessage} type="error" />}
     </div>
   );
 }
 
-// ----- TOAST COMPONENT -----
 const Toast = ({ message, type }) => (
   <div
     className={`fixed top-5 left-1/2 -translate-x-1/2 z-[60] transform transition-all duration-300 opacity-100 translate-y-0`}
