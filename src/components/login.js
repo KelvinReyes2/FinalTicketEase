@@ -247,9 +247,19 @@ function Login() {
       }
 
       const userDoc = userSnapshot.docs[0];
-      const userRole = userDoc.data().role || "unknown";
+      const userData = userDoc.data();
+      const userRole = userData.role || "unknown";
 
-      // If the user has the 'super' role, bypass the approval process and send a reset email
+      // Only allow Admin, Cashier, and Super Admin roles to request password reset
+      const allowedRoles = ["Admin", "Cashier", "Super"];
+      if (!allowedRoles.includes(userRole)) {
+        setResetMessage("Password reset is only available for Admin, Cashier, and Super Admin roles. Please contact your administrator.");
+        setResetMessageType("error");
+        setResetLoading(false);
+        return;
+      }
+
+      // If the user has the 'Super' role, bypass the approval process and send a reset email
       if (userRole === "Super") {
         await sendPasswordResetEmail(auth, resetEmail);
         setResetMessage("Password reset email has been sent to your inbox.");
@@ -278,6 +288,7 @@ function Login() {
         status: "pending", // Set the status to pending initially
         requestedAt: serverTimestamp(),
         approvedBy: null,
+        userFullName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Unknown User'
       });
 
       setResetMessage(
@@ -692,8 +703,8 @@ function Login() {
                 Reset Your Password
               </h3>
               <p className="text-gray-500 mt-2 mb-6 text-sm">
-                Enter your registered email. Your request will be reviewed by
-                the Super Admin.
+                Password reset is available for Admin, Cashier, and Super Admin roles only. 
+                Enter your registered email and your request will be reviewed by the Super Admin.
               </p>
             </div>
 
