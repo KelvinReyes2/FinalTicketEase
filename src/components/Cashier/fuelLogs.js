@@ -427,8 +427,12 @@ const FuelLogsPage = () => {
         Officer: userName,
         Vehicle: unit,
         fuelAmount: parseFloat(form.amount),
+        status: "done",
         timestamp: serverTimestamp(),
       });
+
+      // REMOVED: The fuelStatus update to driver document
+      // await updateDoc(driverRef, { fuelStatus: "done" });
 
       await logSystemActivity(
         `Added fuel expense: ₱${parseFloat(form.amount).toFixed(2)} for ${selectedDriver.fullName}`,
@@ -446,6 +450,7 @@ const FuelLogsPage = () => {
     }
   };
 
+  // Export functions
   const headers = [
     "ID",
     "Timestamp",

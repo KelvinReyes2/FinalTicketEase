@@ -6,7 +6,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, updateDoc, onSnapshot } from "firebase/firestore";
 
 import { auth, db } from "./firebase";
 
@@ -44,6 +44,26 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [systemStatus, setSystemStatus] = useState("Operational Mode");
+
+  // Listen to system status changes in real-time
+  useEffect(() => {
+    const systemDocRef = doc(db, "system", "Status");
+    const unsubscribe = onSnapshot(
+      systemDocRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setSystemStatus(data.status || "Operational Mode");
+        }
+      },
+      (error) => {
+        console.error("Error fetching system status:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -51,17 +71,16 @@ function App() {
         const ref = doc(db, "users", firebaseUser.uid);
         const snap = await getDoc(ref);
 
-        setUser(
-          snap.exists()
-            ? {
-                uid: firebaseUser.uid,
-                email: firebaseUser.email,
-                ...snap.data(),
-              }
-            : null
-        );
-
-        // Don't set isLogged here - it will be set in login.js when user actually logs in
+        if (snap.exists()) {
+          const userData = snap.data();
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            ...userData,
+          });
+        } else {
+          setUser(null);
+        }
       } else {
         setUser(null);
       }
@@ -72,27 +91,48 @@ function App() {
     return () => unsub();
   }, []);
 
+  // Handle maintenance mode for logged-in users (except Super Admin)
+  useEffect(() => {
+    const handleMaintenanceMode = async () => {
+      if (
+        systemStatus === "Maintenance Mode" &&
+        user &&
+        user.role &&
+        user.role.toLowerCase() !== "super"
+      ) {
+        // Log out the user
+        if (user.uid) {
+          const ref = doc(db, "users", user.uid);
+          await updateDoc(ref, {
+            isLogged: false,
+            lastLogoutTime: serverTimestamp(),
+          });
+        }
+        await signOut(auth);
+        // User will be redirected to login page automatically by Login component
+      }
+    };
+
+    handleMaintenanceMode();
+  }, [systemStatus, user]);
+
   // Handle tab close/browser close - set isLogged to false
   useEffect(() => {
     const handleBeforeUnload = async () => {
       if (user && user.uid) {
         const ref = doc(db, "users", user.uid);
         
-        // Set isLogged to false when tab/browser closes
         await updateDoc(ref, {
           isLogged: false,
           lastLogoutTime: serverTimestamp()
         });
 
-        // Sign out the user
         await signOut(auth);
       }
     };
 
-    // Add event listener for tab/window close
     window.addEventListener("beforeunload", handleBeforeUnload);
 
-    // Cleanup
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
