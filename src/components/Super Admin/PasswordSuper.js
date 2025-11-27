@@ -80,10 +80,11 @@ export default function PasswordSuper() {
           }
         });
 
+        // Changed to descending order (most recent first)
         tmp.sort((a, b) => {
           const ta = toMillis(a.requestedAt);
           const tb = toMillis(b.requestedAt);
-          if (ta !== tb) return ta - tb;
+          if (ta !== tb) return tb - ta; // Changed from ta - tb to tb - ta
           return (a.user || "").localeCompare(b.user || "");
         });
 

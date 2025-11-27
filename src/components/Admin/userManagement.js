@@ -673,7 +673,7 @@ export default function UserManagement() {
                       value={filterBy}
                       onChange={(e) => setFilterBy(e.target.value)}
                     >
-                      <option value="">Filter By</option>
+                      <option value="">Filter By Status</option>
                       <option value="Active">Active</option>
                       <option value="Inactive">Inactive</option>
                     </select>
