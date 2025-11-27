@@ -234,6 +234,7 @@ export default function UserManagement() {
     Cashier: ["View Dashboard", "Fuel Logs"],
   };
 
+  // FIXED: Use filteredWithRowNumber for export data instead of original user array
   const headers = [
     "ID",
     "Username",
@@ -244,8 +245,10 @@ export default function UserManagement() {
     "Address",
     "Created At",
   ];
-  const rows = user.map((user, index) => [
-    index + 1,
+
+  // Use filtered data for export
+  const exportRows = filteredWithRowNumber.map((user) => [
+    user._row,
     user.displayName,
     user.email,
     user.role,
@@ -258,9 +261,14 @@ export default function UserManagement() {
   // Enhanced export functions with role mapping and system logging
   const handleExportToCSV = async () => {
     try {
+      if (!filteredWithRowNumber || filteredWithRowNumber.length === 0) {
+        alert("No data to export.");
+        return;
+      }
+
       await exportToCSV(
         headers,
-        rows,
+        exportRows,
         "User-Management-Report.csv",
         currentUserEmail,
         "User Management Report"
@@ -277,9 +285,14 @@ export default function UserManagement() {
 
   const handleExportToPDF = async () => {
     try {
+      if (!filteredWithRowNumber || filteredWithRowNumber.length === 0) {
+        alert("No data to export.");
+        return;
+      }
+
       await exportToPDF(
         headers,
-        rows,
+        exportRows,
         "User-Management-Report",
         "User-Management-Report.pdf",
         currentUserEmail
