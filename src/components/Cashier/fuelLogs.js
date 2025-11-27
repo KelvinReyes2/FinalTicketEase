@@ -467,7 +467,7 @@ const FuelLogsPage = () => {
       fullDateTime,
       log.driver,
       log.officer,
-      `PHP${log.amount.toFixed(2)}`,
+      `${log.amount.toFixed(2)}`,
       log.vehicle,
     ];
   });
