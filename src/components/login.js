@@ -253,7 +253,7 @@ function Login() {
       // Only allow Admin, Cashier, and Super Admin roles to request password reset
       const allowedRoles = ["Admin", "Cashier", "Super"];
       if (!allowedRoles.includes(userRole)) {
-        setResetMessage("Password reset is only available for Admin, Cashier, and Super Admin roles. Please contact your administrator.");
+        setResetMessage("Password reset functionality is exclusively available for web-based user accounts. For assistance, please contact your system administrator.");
         setResetMessageType("error");
         setResetLoading(false);
         return;
