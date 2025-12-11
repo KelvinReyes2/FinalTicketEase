@@ -59,6 +59,7 @@ const TripLogs = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [userRole, setUserRole] = useState("User");
   const [selectedTripCount, setSelectedTripCount] = useState("all"); // "all" or specific trip number
+  const [currentUserData, setCurrentUserData] = useState(null); // Added for user data
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -67,8 +68,34 @@ const TripLogs = () => {
 
   const auth = getAuth();
   const currentUser = auth.currentUser;
-  const userName =
-    currentUser?.displayName || currentUser?.email || "Unknown User";
+
+  // Fetch current user data for exporting
+  useEffect(() => {
+    const fetchCurrentUserData = async () => {
+      try {
+        const user = auth.currentUser;
+        if (user) {
+          const docRef = doc(db, "users", user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setCurrentUserData(docSnap.data());
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching current user:", err);
+      }
+    };
+
+    fetchCurrentUserData();
+  }, []);
+
+  // Get exportedBy full name
+  const getExportedBy = () => {
+    if (currentUserData && currentUserData.firstName && currentUserData.lastName) {
+      return `${currentUserData.firstName} ${currentUserData.middleName ? currentUserData.middleName + ' ' : ''}${currentUserData.lastName}`.trim();
+    }
+    return currentUser?.email || "Unknown User";
+  };
 
   // Function to fetch user role
   const fetchUserRole = useCallback(async () => {
@@ -119,10 +146,10 @@ const TripLogs = () => {
   };
 
   const getDriversFromTransactions = useCallback(() => {
-  const filtered = filterTransactionsByDate(transactions);
-  const driverUIDs = new Set(filtered.map(t => t.driverUID));
-  return driverUIDs;
-}, [transactions, selectedStartDate, selectedEndDate]);
+    const filtered = filterTransactionsByDate(transactions);
+    const driverUIDs = new Set(filtered.map(t => t.driverUID));
+    return driverUIDs;
+  }, [transactions, selectedStartDate, selectedEndDate]);
 
   // Real-time listener for unit collection to get dispatched drivers with their routes
   const setupDispatchedDriversListener = useCallback(() => {
@@ -173,70 +200,70 @@ const TripLogs = () => {
 
   // Real-time users listener - filter by dispatched drivers
   const setupUsersListener = useCallback(() => {
-  try {
-    const usersRef = collection(db, "users");
-    const q = query(
-      usersRef,
-      where("role", "in", ["Driver", "Reliever"]),
-      where("status", "==", "Active")
-    );
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(
+        usersRef,
+        where("role", "in", ["Driver", "Reliever"]),
+        where("status", "==", "Active")
+      );
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const userData = [];
-      const driversFromTransactions = getDriversFromTransactions();
-      
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
+      const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const userData = [];
+        const driversFromTransactions = getDriversFromTransactions();
         
-        // Check if date range is today only
-        const isToday = selectedStartDate === getTodayDate() && !selectedEndDate;
-        
-        // Include driver if:
-        // 1. Currently dispatched (for today's view), OR
-        // 2. Has transactions in the selected date range (for historical view)
-        const isDispatched = dispatchedDriversMap.has(doc.id);
-        const hasTransactions = driversFromTransactions.has(doc.id);
-        
-        if (isToday) {
-          // Only show currently dispatched drivers for today
-          if (isDispatched) {
-            userData.push({
-              id: doc.id,
-              displayName: `${data.firstName || ""} ${data.lastName || ""}`.trim(),
-              role: data.role,
-              status: data.status,
-              dispatchedRoute: dispatchedDriversMap.get(doc.id),
-            });
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          
+          // Check if date range is today only
+          const isToday = selectedStartDate === getTodayDate() && !selectedEndDate;
+          
+          // Include driver if:
+          // 1. Currently dispatched (for today's view), OR
+          // 2. Has transactions in the selected date range (for historical view)
+          const isDispatched = dispatchedDriversMap.has(doc.id);
+          const hasTransactions = driversFromTransactions.has(doc.id);
+          
+          if (isToday) {
+            // Only show currently dispatched drivers for today
+            if (isDispatched) {
+              userData.push({
+                id: doc.id,
+                displayName: `${data.firstName || ""} ${data.lastName || ""}`.trim(),
+                role: data.role,
+                status: data.status,
+                dispatchedRoute: dispatchedDriversMap.get(doc.id),
+              });
+            }
+          } else {
+            // Show both dispatched and historical drivers with transactions
+            if (isDispatched || hasTransactions) {
+              userData.push({
+                id: doc.id,
+                displayName: `${data.firstName || ""} ${data.lastName || ""}`.trim(),
+                role: data.role,
+                status: data.status,
+                dispatchedRoute: dispatchedDriversMap.get(doc.id) || null,
+                isHistorical: !isDispatched && hasTransactions, // Mark as historical
+              });
+            }
           }
-        } else {
-          // Show both dispatched and historical drivers with transactions
-          if (isDispatched || hasTransactions) {
-            userData.push({
-              id: doc.id,
-              displayName: `${data.firstName || ""} ${data.lastName || ""}`.trim(),
-              role: data.role,
-              status: data.status,
-              dispatchedRoute: dispatchedDriversMap.get(doc.id) || null,
-              isHistorical: !isDispatched && hasTransactions, // Mark as historical
-            });
-          }
-        }
+        });
+        
+        setUsers(userData);
+        setLoading(false);
+      }, (error) => {
+        console.error("Error listening to users:", error);
+        setErr("Failed to load users");
+        setLoading(false);
       });
-      
-      setUsers(userData);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error listening to users:", error);
-      setErr("Failed to load users");
-      setLoading(false);
-    });
 
-    return unsubscribe;
-  } catch (error) {
-    console.error("Error setting up users listener:", error);
-    setLoading(false);
-  }
-}, [dispatchedDriversMap, selectedStartDate, selectedEndDate, getDriversFromTransactions]);
+      return unsubscribe;
+    } catch (error) {
+      console.error("Error setting up users listener:", error);
+      setLoading(false);
+    }
+  }, [dispatchedDriversMap, selectedStartDate, selectedEndDate, getDriversFromTransactions]);
 
   // Real-time transactions listener (non-voided)
   const setupTransactionsListener = useCallback(() => {
@@ -484,26 +511,26 @@ const TripLogs = () => {
     }, 0);
   };
 
- const getTotalTripCount = () => {
-  // Always use "all" to ignore the trip count filter for the dashboard card
-  const allFiltered = getAllFilteredTransactions("all");
-  const driversTripCounts = {};
-  
-  allFiltered.forEach(transaction => {
-    const driverUID = transaction.driverUID;
-    const tripCount = transaction.tripCount || 0;
+  const getTotalTripCount = () => {
+    // Always use "all" to ignore the trip count filter for the dashboard card
+    const allFiltered = getAllFilteredTransactions("all");
+    const driversTripCounts = {};
     
-    if (!driversTripCounts[driverUID]) {
-      driversTripCounts[driverUID] = [];
-    }
-    driversTripCounts[driverUID].push(tripCount);
-  });
-  
-  // Sum the maximum trip count for each driver
-  return Object.values(driversTripCounts).reduce((total, tripCounts) => {
-    return total + (tripCounts.length > 0 ? Math.max(...tripCounts) : 0);
-  }, 0);
-};
+    allFiltered.forEach(transaction => {
+      const driverUID = transaction.driverUID;
+      const tripCount = transaction.tripCount || 0;
+      
+      if (!driversTripCounts[driverUID]) {
+        driversTripCounts[driverUID] = [];
+      }
+      driversTripCounts[driverUID].push(tripCount);
+    });
+    
+    // Sum the maximum trip count for each driver
+    return Object.values(driversTripCounts).reduce((total, tripCounts) => {
+      return total + (tripCounts.length > 0 ? Math.max(...tripCounts) : 0);
+    }, 0);
+  };
 
   const getTotalFareCollected = () => {
     return getTotalCashFareCollected() + getTotalCardFareCollected();
@@ -587,17 +614,24 @@ const TripLogs = () => {
   // Export functions
   const handleExportCSV = async () => {
     try {
+      if (!filteredUsers || filteredUsers.length === 0) {
+        alert("No data to export.");
+        return;
+      }
+
+      const exportedBy = getExportedBy();
+
       exportToCSV(
         headers,
         rows,
         "Trip-Logs-Report.csv",
-        userName,
+        exportedBy,
         "Trip-Logs-Report",
         selectedStartDate,
         selectedEndDate
       );
 
-      await logSystemActivity("Exported Trip Logs Report to CSV", userName);
+      await logSystemActivity("Exported Trip Logs Report to CSV", exportedBy);
       setIsDropdownOpen(false);
     } catch (error) {
       console.error("Error during CSV export:", error);
@@ -606,17 +640,24 @@ const TripLogs = () => {
 
   const handleExportPDF = async () => {
     try {
+      if (!filteredUsers || filteredUsers.length === 0) {
+        alert("No data to export.");
+        return;
+      }
+
+      const exportedBy = getExportedBy();
+
       exportToPDF(
         headers,
         rows,
         "Trip-Logs-Report",
         "Trip-Logs-Report.pdf",
-        userName,
+        exportedBy,
         selectedStartDate,
         selectedEndDate
       );
 
-      await logSystemActivity("Exported Trip Logs Report to PDF", userName);
+      await logSystemActivity("Exported Trip Logs Report to PDF", exportedBy);
       setIsDropdownOpen(false);
     } catch (error) {
       console.error("Error during PDF export:", error);
@@ -645,16 +686,16 @@ const TripLogs = () => {
 
   // Setup users listener when dispatched drivers are loaded
   useEffect(() => {
-  if (dispatchedDriversMap.size > 0 || transactions.length > 0) {
-    const unsubscribeUsers = setupUsersListener();
-    return () => {
-      if (unsubscribeUsers) unsubscribeUsers();
-    };
-  } else {
-    setUsers([]);
-    setLoading(false);
-  }
-}, [dispatchedDriversMap, setupUsersListener, selectedStartDate, selectedEndDate, transactions]);
+    if (dispatchedDriversMap.size > 0 || transactions.length > 0) {
+      const unsubscribeUsers = setupUsersListener();
+      return () => {
+        if (unsubscribeUsers) unsubscribeUsers();
+      };
+    } else {
+      setUsers([]);
+      setLoading(false);
+    }
+  }, [dispatchedDriversMap, setupUsersListener, selectedStartDate, selectedEndDate, transactions]);
 
   const toggleDropdown = () => setIsDropdownOpen(!isDropdownOpen);
 

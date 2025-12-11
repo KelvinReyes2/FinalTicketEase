@@ -121,6 +121,7 @@ const TransactionOverview = () => {
   const [units, setUnits] = useState([]);
   const [unitLogs, setUnitLogs] = useState([]);
   const [selectedRoute, setSelectedRoute] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState(""); // Added status filter
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState(getTodayDate());
@@ -137,6 +138,7 @@ const TransactionOverview = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [userRole, setUserRole] = useState("User");
+  const [currentUserData, setCurrentUserData] = useState(null); // For exporting user info
 
   const transactionsPerPage = 10;
   const primaryColor = "#364C6E";
@@ -168,6 +170,22 @@ const TransactionOverview = () => {
       setUserRole("User");
     }
   }, [currentUser?.uid]);
+
+  // Fetch current user data for exporting
+  const fetchCurrentUserData = useCallback(async () => {
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        const docRef = doc(db, "users", user.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setCurrentUserData(docSnap.data());
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching current user:", err);
+    }
+  }, [auth]);
 
   // Function to map user roles to display roles for logging
   const mapRoleForLogging = (role) => {
@@ -368,7 +386,7 @@ const TransactionOverview = () => {
     return assignmentToUse ? assignmentToUse.unitNumber : "No Unit Assigned";
   };
 
-  // Filter transactions by date range, route, and search
+  // Filter transactions by date range, route, status, and search
   const filterTransactions = useCallback(() => {
     let filtered = transactions;
 
@@ -411,6 +429,15 @@ const TransactionOverview = () => {
       );
     }
 
+    // Filter by status (Added)
+    if (selectedStatus) {
+      if (selectedStatus === "Successful") {
+        filtered = filtered.filter((transaction) => !transaction.isVoided);
+      } else if (selectedStatus === "Voided") {
+        filtered = filtered.filter((transaction) => transaction.isVoided);
+      }
+    }
+
     // Filter by search (searches multiple fields)
     if (search.trim()) {
       const searchQuery = search.trim().toLowerCase();
@@ -422,7 +449,7 @@ const TransactionOverview = () => {
     }
 
     setFilteredTransactions(filtered);
-  }, [startDate, endDate, transactions, selectedRoute, search]);
+  }, [startDate, endDate, transactions, selectedRoute, selectedStatus, search]);
 
   // Calculate statistics - Exclude voided transactions from total tickets count
   const calculateStats = useCallback(() => {
@@ -464,6 +491,7 @@ const TransactionOverview = () => {
     setStartDate(getTodayDate());
     setEndDate("");
     setSelectedRoute("");
+    setSelectedStatus(""); // Reset status filter
     setSearch("");
   };
 
@@ -513,11 +541,16 @@ const TransactionOverview = () => {
 
   const handleExportCSV = async () => {
     try {
+      // Get the full name for the exportedBy parameter
+      const exportedBy = currentUserData && currentUserData.firstName && currentUserData.lastName 
+        ? `${currentUserData.firstName} ${currentUserData.middleName ? currentUserData.middleName + ' ' : ''}${currentUserData.lastName}`.trim()
+        : currentUser?.email || "Unknown User";
+
       exportToCSV(
         headers,
         rows,
         "Transaction-Overview-Report.csv",
-        userName,
+        exportedBy,
         "Transaction-Overview-Report",
         startDate,
         endDate
@@ -536,12 +569,17 @@ const TransactionOverview = () => {
 
   const handleExportPDF = async () => {
     try {
+      // Get the full name for the exportedBy parameter
+      const exportedBy = currentUserData && currentUserData.firstName && currentUserData.lastName 
+        ? `${currentUserData.firstName} ${currentUserData.middleName ? currentUserData.middleName + ' ' : ''}${currentUserData.lastName}`.trim()
+        : currentUser?.email || "Unknown User";
+
       exportToPDF(
         headers,
         rows,
         "Transaction-Overview-Report",
         "Transaction-Overview-Report.pdf",
-        userName,
+        exportedBy,
         startDate,
         endDate
       );
@@ -561,6 +599,7 @@ const TransactionOverview = () => {
   useEffect(() => {
     const initData = async () => {
       await fetchUserRole();
+      await fetchCurrentUserData();
     };
     initData();
 
@@ -581,6 +620,7 @@ const TransactionOverview = () => {
     setupUnitsListener,
     setupUnitLogsListener,
     fetchUserRole,
+    fetchCurrentUserData,
   ]);
 
   useEffect(() => {
@@ -589,6 +629,7 @@ const TransactionOverview = () => {
     startDate,
     endDate,
     selectedRoute,
+    selectedStatus,
     search,
     transactions,
     filterTransactions,
@@ -738,7 +779,7 @@ const TransactionOverview = () => {
           Transaction Overview
         </h2>
 
-        {/* Date Filters, Route Filter, Search, and Export */}
+        {/* Date Filters, Route Filter, Status Filter, Search, and Export */}
         <div className="flex flex-wrap gap-4 items-end">
           <div className="flex flex-col">
             <label className="text-sm font-medium text-gray-700 mb-1">
@@ -777,6 +818,22 @@ const TransactionOverview = () => {
                   {route}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Status Filter - Added */}
+          <div className="flex flex-col">
+            <label className="text-sm font-medium text-gray-700 mb-1">
+              Status
+            </label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Status</option>
+              <option value="Successful">Successful</option>
+              <option value="Voided">Voided</option>
             </select>
           </div>
 

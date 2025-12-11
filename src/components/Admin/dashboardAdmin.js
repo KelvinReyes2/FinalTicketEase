@@ -99,6 +99,7 @@ const DashboardAnalytics = () => {
   const [filteredTransactions, setFilteredTransactions] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [selectedRoute, setSelectedRoute] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState(""); // Added status filter
   const [driverSearch, setDriverSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState(getTodayDate());
@@ -228,7 +229,7 @@ const DashboardAnalytics = () => {
     }
   }, [startDate, endDate]);
 
-  // Filter transactions by date range, route, and driver search
+  // Filter transactions by date range, route, status, and driver search
   const filterTransactions = useCallback(() => {
     let filtered = transactions;
 
@@ -260,6 +261,15 @@ const DashboardAnalytics = () => {
       );
     }
 
+    // Filter by status (Added)
+    if (selectedStatus) {
+      if (selectedStatus === "Successful") {
+        filtered = filtered.filter((transaction) => !transaction.isVoided);
+      } else if (selectedStatus === "Voided") {
+        filtered = filtered.filter((transaction) => transaction.isVoided);
+      }
+    }
+
     if (driverSearch.trim()) {
       const searchTerm = driverSearch.trim().toLowerCase();
       filtered = filtered.filter(
@@ -270,7 +280,7 @@ const DashboardAnalytics = () => {
     }
 
     setFilteredTransactions(filtered);
-  }, [startDate, endDate, transactions, selectedRoute, driverSearch]);
+  }, [startDate, endDate, transactions, selectedRoute, selectedStatus, driverSearch]);
 
   // Calculate statistics
   const calculateStats = useCallback(() => {
@@ -313,6 +323,7 @@ const DashboardAnalytics = () => {
     setStartDate(getTodayDate());
     setEndDate("");
     setSelectedRoute("");
+    setSelectedStatus(""); // Reset status filter
     setDriverSearch("");
   };
 
@@ -349,6 +360,7 @@ const DashboardAnalytics = () => {
     startDate,
     endDate,
     selectedRoute,
+    selectedStatus,
     driverSearch,
     transactions,
     filterTransactions,
@@ -534,7 +546,7 @@ const DashboardAnalytics = () => {
           Dashboard Overview
         </h2>
 
-        {/* Date Filter, Route Filter, and Driver Search */}
+        {/* Date Filter, Route Filter, Status Filter, and Driver Search */}
         <div className="flex flex-wrap gap-4 items-end">
           <div className="flex flex-col">
             <label className="text-sm font-medium text-gray-700 mb-1">
@@ -575,6 +587,23 @@ const DashboardAnalytics = () => {
               ))}
             </select>
           </div>
+
+          {/* Status Filter - Added */}
+          <div className="flex flex-col">
+            <label className="text-sm font-medium text-gray-700 mb-1">
+              Status
+            </label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Status</option>
+              <option value="Successful">Successful</option>
+              <option value="Voided">Voided</option>
+            </select>
+          </div>
+
           <div className="flex flex-col">
             <label className="text-sm font-medium text-gray-700 mb-1">
               Search Driver

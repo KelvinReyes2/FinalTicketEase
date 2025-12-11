@@ -98,6 +98,7 @@ const QuotaSummary = () => {
   const [userRole, setUserRole] = useState("User");
   const [generalTarget, setGeneralTarget] = useState(0);
   const [users, setUsers] = useState({});
+  const [currentUserData, setCurrentUserData] = useState(null); // Added for user data
 
   const [filterStartDate, setFilterStartDate] = useState(getTodayDate());
   const [filterEndDate, setFilterEndDate] = useState("");
@@ -110,13 +111,39 @@ const QuotaSummary = () => {
 
   const auth = getAuth();
   const currentUser = auth.currentUser;
-  const userName =
-    currentUser?.displayName || currentUser?.email || "Unknown User";
 
   const primaryColor = "#364C6E";
   const secondaryColor = "#405a88";
 
   const toggleDropdown = () => setIsDropdownOpen(!isDropdownOpen);
+
+  // Fetch current user data for exporting
+  useEffect(() => {
+    const fetchCurrentUserData = async () => {
+      try {
+        const user = auth.currentUser;
+        if (user) {
+          const docRef = doc(db, "users", user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setCurrentUserData(docSnap.data());
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching current user:", err);
+      }
+    };
+
+    fetchCurrentUserData();
+  }, []);
+
+  // Get exportedBy full name
+  const getExportedBy = () => {
+    if (currentUserData && currentUserData.firstName && currentUserData.lastName) {
+      return `${currentUserData.firstName} ${currentUserData.middleName ? currentUserData.middleName + ' ' : ''}${currentUserData.lastName}`.trim();
+    }
+    return currentUser?.email || "Unknown User";
+  };
 
   // Function to fetch user role
   const fetchUserRole = useCallback(async () => {
@@ -384,20 +411,26 @@ const QuotaSummary = () => {
   }));
 
   // Enhanced export functions
-  // Enhanced export functions
   const handleExportCSV = async () => {
     try {
+      if (!filteredData || filteredData.length === 0) {
+        alert("No data to export.");
+        return;
+      }
+
+      const exportedBy = getExportedBy();
+
       exportToCSV(
         headers,
         rows,
         "Quota-Summary-Report.csv",
-        userName,
+        exportedBy,
         "Quota-Summary-Report",
         filterStartDate,
         filterEndDate
       );
 
-      await logSystemActivity("Exported Quota Summary Report to CSV", userName);
+      await logSystemActivity("Exported Quota Summary Report to CSV", exportedBy);
 
       setIsDropdownOpen(false);
     } catch (error) {
@@ -407,23 +440,31 @@ const QuotaSummary = () => {
 
   const handleExportPDF = async () => {
     try {
+      if (!filteredData || filteredData.length === 0) {
+        alert("No data to export.");
+        return;
+      }
+
+      const exportedBy = getExportedBy();
+
       exportToPDF(
         headers,
         rows,
         "Quota-Summary-Report",
         "Quota-Summary-Report.pdf",
-        userName,
+        exportedBy,
         filterStartDate,
         filterEndDate
       );
 
-      await logSystemActivity("Exported Quota Summary Report to PDF", userName);
+      await logSystemActivity("Exported Quota Summary Report to PDF", exportedBy);
 
       setIsDropdownOpen(false);
     } catch (error) {
       console.error("Error during PDF export:", error);
     }
   };
+
   // Setup all real-time listeners
   useEffect(() => {
     const initData = async () => {
