@@ -8,6 +8,8 @@ import IconReport from "../../images/Report.png";
 import IconTransaction from "../../images/transaction white.png";
 import IconQuotaSummary from "../../images/Quota Summary White.png";
 import IconTripLogs from "../../images/tripLogs White.png";
+import IconFuelReport from "../../images/fuelReport.png";
+import IconFuelReportActive from "../../images/fuelReportBlue.png";
 
 import IconADashboardActive from "../../images/Dashboard Blue.png";
 import IconUnitActive from "../../images/Monitoring Blue.png";
@@ -153,21 +155,28 @@ export const navLinks = [
         label: "Transaction Overview",
         role: "Admin",
         permission: "Reports",
-        img: { inactive: IconTransaction, active: IconTransactionActive}, // to change icon
+        img: { inactive: IconTransaction, active: IconTransactionActive},
       },
       {
         to: "/Reports/quotaSummary",
         label: "Quota Summary",
         role: "Admin",
         permission: "Reports",
-        img: { inactive: IconQuotaSummary, active: IconQuotaSummaryActive}, // to change icon
+        img: { inactive: IconQuotaSummary, active: IconQuotaSummaryActive},
       },
       {
         to: "/Reports/tripLogs",
         label: "Trip Logs",
         role: "Admin",
         permission: "Reports",
-        img: { inactive: IconTripLogs, active: IconTripLogsActive}, // to change icon
+        img: { inactive: IconTripLogs, active: IconTripLogsActive},
+      },
+      {
+        to: "/Reports/fuelReport",
+        label: "Fuel Report",
+        role: "Admin",
+        permission: "Reports",
+        img: { inactive: IconFuelReport, active: IconFuelReportActive},
       },
     ],
   },

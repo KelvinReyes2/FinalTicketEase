@@ -8,8 +8,9 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../../firebase";
+import { getAuth } from "firebase/auth";
 import { Fuel, Users, UserCheck, DollarSign } from "lucide-react";
-import { Line, Bar} from "react-chartjs-2";
+import { Line, Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -41,6 +42,11 @@ ChartJS.register(
 );
 
 const CashierDashboardAnalytics = () => {
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+  const userName =
+    currentUser?.displayName || currentUser?.email || "Unknown User";
+
   // Get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
     const today = new Date();
@@ -50,12 +56,33 @@ const CashierDashboardAnalytics = () => {
     return `${year}-${month}-${day}`;
   };
 
+  // Get start of current week (Monday)
+  const getWeekStart = () => {
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(today.setDate(diff));
+    const year = monday.getFullYear();
+    const month = String(monday.getMonth() + 1).padStart(2, "0");
+    const dayStr = String(monday.getDate()).padStart(2, "0");
+    return `${year}-${month}-${dayStr}`;
+  };
+
+  // Get start of current month
+  const getMonthStart = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}-01`;
+  };
+
   const [fuelPrice, setFuelPrice] = useState(0);
   const [logs, setLogs] = useState([]);
   const [filteredLogs, setFilteredLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState(getTodayDate());
   const [endDate, setEndDate] = useState("");
+  const [filterMode, setFilterMode] = useState("custom"); // 'today', 'week', 'month', 'custom'
   const [stats, setStats] = useState({
     driversRelievers: 0,
     officersFueled: 0,
@@ -101,17 +128,17 @@ const CashierDashboardAnalytics = () => {
       }
 
       // Format time (e.g., 10:28 AM)
-      const time = date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
+      const time = date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
       });
 
       // Format date (e.g., September 17, 2025)
-      const dateStr = date.toLocaleDateString('en-US', { 
-        month: 'long', 
-        day: 'numeric', 
-        year: 'numeric' 
+      const dateStr = date.toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
       });
 
       // Full date time for export
@@ -140,15 +167,19 @@ const CashierDashboardAnalytics = () => {
     fetchCounts();
   }, []);
 
-  // Fetch Fuel Price & Logs
+  // Fetch Fuel Price & Logs - ONLY CURRENT USER'S LOGS
   const fetchFuelLog = useCallback(async () => {
     try {
       setLoading(true);
 
-      // Fetch fuel logs
+      // Fetch fuel logs - ONLY for current user
       const logsRef = collection(db, "fuelLogs");
       const logsSnapshot = await getDocs(
-        query(logsRef, orderBy("timestamp", "desc"))
+        query(
+          logsRef,
+          where("Officer", "==", userName),
+          orderBy("timestamp", "desc")
+        )
       );
 
       const logsData = logsSnapshot.docs.map((doc) => {
@@ -199,7 +230,7 @@ const CashierDashboardAnalytics = () => {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, userName]);
 
   // Filter logs by date
   const filterLogsByDate = (logsToFilter, filterStartDate, filterEndDate) => {
@@ -268,7 +299,7 @@ const CashierDashboardAnalytics = () => {
     setExpenseData(expenseByDriver);
 
     const totalFuelExpense = filteredLogs.reduce(
-      (sum, log) => sum + (parseFloat(log.amount) || 0),
+      (sum, log) => sum + (parseFloat(log.amount) || 0) * fuelPrice,
       0
     );
 
@@ -284,8 +315,10 @@ const CashierDashboardAnalytics = () => {
   }, [filteredLogs, fuelPrice, driverRelieverCount]);
 
   useEffect(() => {
-    fetchFuelLog();
-  }, [fetchFuelLog]);
+    if (userName !== "Unknown User") {
+      fetchFuelLog();
+    }
+  }, [fetchFuelLog, userName]);
 
   useEffect(() => {
     filterLogsByDate(logs, startDate, endDate);
@@ -333,7 +366,33 @@ const CashierDashboardAnalytics = () => {
     if (currentPage > 1) setCurrentPage(currentPage - 1);
   };
 
+  const handleFilterChange = (mode) => {
+    setFilterMode(mode);
+    const today = getTodayDate();
+
+    switch (mode) {
+      case "today":
+        setStartDate(today);
+        setEndDate("");
+        break;
+      case "week":
+        setStartDate(getWeekStart());
+        setEndDate(today);
+        break;
+      case "month":
+        setStartDate(getMonthStart());
+        setEndDate(today);
+        break;
+      case "custom":
+        // Keep current dates
+        break;
+      default:
+        break;
+    }
+  };
+
   const handleResetDates = () => {
+    setFilterMode("today");
     setStartDate(getTodayDate());
     setEndDate("");
     setFilteredLogs(logs);
@@ -383,42 +442,129 @@ const CashierDashboardAnalytics = () => {
         <h2 className="text-2xl font-semibold text-gray-800 mb-4">
           Cashier Dashboard
         </h2>
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex flex-col">
-            <label className="text-sm font-medium text-gray-600 mb-1">
-              Start Date
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div className="flex flex-col">
-            <label className="text-sm font-medium text-gray-600 mb-1">
-              End Date
-            </label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+
+        {/* Filter Mode Buttons */}
+        <div className="flex flex-wrap gap-3 mb-4">
           <button
-            onClick={handleResetDates}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+            onClick={() => handleFilterChange("today")}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              filterMode === "today"
+                ? "text-white shadow-md"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            }`}
+            style={
+              filterMode === "today"
+                ? { backgroundColor: primaryColor }
+                : undefined
+            }
           >
-            Reset
+            Today
           </button>
           <button
-            onClick={fetchFuelLog}
-            className="px-4 py-2 text-white rounded-lg shadow-md hover:opacity-90 transition"
-            style={{ backgroundColor: primaryColor }}
+            onClick={() => handleFilterChange("week")}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              filterMode === "week"
+                ? "text-white shadow-md"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            }`}
+            style={
+              filterMode === "week"
+                ? { backgroundColor: primaryColor }
+                : undefined
+            }
           >
-            Refresh
+            This Week
           </button>
+          <button
+            onClick={() => handleFilterChange("month")}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              filterMode === "month"
+                ? "text-white shadow-md"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            }`}
+            style={
+              filterMode === "month"
+                ? { backgroundColor: primaryColor }
+                : undefined
+            }
+          >
+            This Month
+          </button>
+          <button
+            onClick={() => handleFilterChange("custom")}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              filterMode === "custom"
+                ? "text-white shadow-md"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            }`}
+            style={
+              filterMode === "custom"
+                ? { backgroundColor: primaryColor }
+                : undefined
+            }
+          >
+            Custom Range
+          </button>
+        </div>
+
+        {/* Date Inputs - Show only in custom mode */}
+        {filterMode === "custom" && (
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-600 mb-1">
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-600 mb-1">
+                End Date
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <button
+              onClick={handleResetDates}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+            >
+              Reset
+            </button>
+            <button
+              onClick={fetchFuelLog}
+              className="px-4 py-2 text-white rounded-lg shadow-md hover:opacity-90 transition"
+              style={{ backgroundColor: primaryColor }}
+            >
+              Refresh
+            </button>
+          </div>
+        )}
+
+        {/* Show selected date range */}
+        <div className="mt-3 text-sm text-gray-600">
+          {filterMode === "today" && (
+            <p>Showing data for: <strong>Today</strong></p>
+          )}
+          {filterMode === "week" && (
+            <p>Showing data for: <strong>This Week</strong> ({getWeekStart()} to {getTodayDate()})</p>
+          )}
+          {filterMode === "month" && (
+            <p>Showing data for: <strong>This Month</strong> ({getMonthStart()} to {getTodayDate()})</p>
+          )}
+          {filterMode === "custom" && startDate && (
+            <p>
+              Showing data from: <strong>{startDate}</strong>
+              {endDate && <> to <strong>{endDate}</strong></>}
+            </p>
+          )}
         </div>
       </div>
 
@@ -492,7 +638,7 @@ const CashierDashboardAnalytics = () => {
         {/* Line Chart Column */}
         <div className="bg-white rounded-lg shadow-md p-6 h-[900px] flex flex-col">
           <h3 className="text-md font-semibold text-gray-800 mb-4">
-            Fuel Price Trend (Monthly)
+            Fuel Price Trend
           </h3>
           <div className="flex-1">
             <Line
@@ -503,7 +649,7 @@ const CashierDashboardAnalytics = () => {
                 plugins: {
                   title: {
                     display: true,
-                    text: "Monthly Fuel Price Trend",
+                    text: "Fuel Price Trend Over Time",
                     font: { size: 12 },
                   },
                 },
@@ -534,51 +680,61 @@ const CashierDashboardAnalytics = () => {
               </tr>
             </thead>
             <tbody>
-              {currentLogs.map((log) => {
-                const { time, date } = formatTimestamp(log.timestamp);
-                return (
-                  <tr key={log.id} className="border-t hover:bg-gray-50">
-                    <td className="px-6 py-3 text-sm">
-                      <div className="text-sm">
-                        <div>{time}</div>
-                        <div className="text-gray-600">{date}</div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-3 text-sm">{log.driver}</td>
-                    <td className="px-6 py-3 text-sm">{log.officer}</td>
-                    <td className="px-6 py-3 text-sm font-medium">
-                      ₱{log.amount.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-3 text-sm">{log.unit}</td>
-                  </tr>
-                );
-              })}
+              {currentLogs.length > 0 ? (
+                currentLogs.map((log) => {
+                  const { time, date } = formatTimestamp(log.timestamp);
+                  return (
+                    <tr key={log.id} className="border-t hover:bg-gray-50">
+                      <td className="px-6 py-3 text-sm">
+                        <div className="text-sm">
+                          <div>{time}</div>
+                          <div className="text-gray-600">{date}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-3 text-sm">{log.driver}</td>
+                      <td className="px-6 py-3 text-sm">{log.officer}</td>
+                      <td className="px-6 py-3 text-sm font-medium">
+                        ₱{log.amount.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-3 text-sm">{log.unit}</td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
+                    No fuel logs found for the selected period
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
         {/* Pagination */}
-        <div className="flex justify-between items-center mt-4">
-          <p className="text-sm text-gray-500">
-            Showing {currentLogs.length} of {filteredLogs.length} logs
-          </p>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={handlePreviousPage}
-              disabled={currentPage === 1}
-              className="px-3 py-2 border rounded-lg text-gray-600 disabled:opacity-50 hover:bg-gray-100"
-            >
-              Prev
-            </button>
-            <button
-              onClick={handleNextPage}
-              disabled={currentPage * logsPerPage >= filteredLogs.length}
-              className="px-3 py-2 border rounded-lg text-gray-600 disabled:opacity-50 hover:bg-gray-100"
-            >
-              Next
-            </button>
+        {filteredLogs.length > 0 && (
+          <div className="flex justify-between items-center mt-4">
+            <p className="text-sm text-gray-500">
+              Showing {currentLogs.length} of {filteredLogs.length} logs
+            </p>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+                className="px-3 py-2 border rounded-lg text-gray-600 disabled:opacity-50 hover:bg-gray-100"
+              >
+                Prev
+              </button>
+              <button
+                onClick={handleNextPage}
+                disabled={currentPage * logsPerPage >= filteredLogs.length}
+                className="px-3 py-2 border rounded-lg text-gray-600 disabled:opacity-50 hover:bg-gray-100"
+              >
+                Next
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

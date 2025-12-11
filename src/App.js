@@ -25,7 +25,7 @@ import VehicleManagement from "./components/Admin/vehicleManagement";
 import TransactionOverview from "./components/Admin/Reports/transactionOverview";
 import QuotaSummary from "./components/Admin/Reports/quotaSummary";
 import TripLogs from "./components/Admin/Reports/tripLogs";
-
+import FuelReport from "./components/Admin/Reports/fuelReport";
 // Cashier pages
 import DashboardCashier from "./components/Cashier/dashboardCashier";
 import FuelLogs from "./components/Cashier/fuelLogs";
@@ -265,6 +265,19 @@ function App() {
                 loading={loading}
               >
                 <TripLogs />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/Reports/fuelReport"
+            element={
+              <PrivateRoute
+                allowedRoles={["Admin"]}
+                requiredPermission="Reports"
+                user={user}
+                loading={loading}
+              >
+                <FuelReport />
               </PrivateRoute>
             }
           />
