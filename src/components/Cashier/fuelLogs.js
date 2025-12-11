@@ -54,6 +54,11 @@ const FuelLogsPage = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState("Unknown");
+  const [currentUserFullName, setCurrentUserFullName] = useState({
+    firstName: "",
+    middleName: "",
+    lastName: "",
+  });
   const [selectedVehicle, setSelectedVehicle] = useState("N/A");
   const [dateFilter, setDateFilter] = useState(getTodayDate());
 
@@ -97,22 +102,28 @@ const FuelLogsPage = () => {
     }
   };
 
-  // Fetch current user's role
+  // Fetch current user's role and full name
   useEffect(() => {
-    const fetchCurrentUserRole = async () => {
+    const fetchCurrentUserData = async () => {
       if (currentUser) {
         try {
           const userDoc = await getDoc(doc(db, "users", currentUser.uid));
           if (userDoc.exists()) {
-            setCurrentUserRole(userDoc.data().role || "Unknown");
+            const userData = userDoc.data();
+            setCurrentUserRole(userData.role || "Unknown");
+            setCurrentUserFullName({
+              firstName: userData.firstName || "",
+              middleName: userData.middleName || "",
+              lastName: userData.lastName || "",
+            });
           }
         } catch (error) {
-          console.error("Error fetching user role:", error);
+          console.error("Error fetching user data:", error);
         }
       }
     };
 
-    fetchCurrentUserRole();
+    fetchCurrentUserData();
   }, [currentUser]);
 
   // Function to log system activities
@@ -160,12 +171,17 @@ const FuelLogsPage = () => {
     return () => unsubUnitData();
   }, []);
 
-  // Fetch Fuel Logs
+  // Fetch Fuel Logs - Only show logs created by current user
   useEffect(() => {
     const fetchLogs = async () => {
       try {
         const logsRef = collection(db, "fuelLogs");
-        const q = query(logsRef, orderBy("timestamp", "desc"));
+        // Filter by current user's email or display name
+        const q = query(
+          logsRef,
+          where("Officer", "==", userName),
+          orderBy("timestamp", "desc")
+        );
         const unsub = onSnapshot(
           q,
           (snapshot) => {
@@ -201,8 +217,10 @@ const FuelLogsPage = () => {
       }
     };
 
-    fetchLogs();
-  }, []);
+    if (userName !== "Unknown User") {
+      fetchLogs();
+    }
+  }, [userName]);
 
   // Updated function to fetch unit for driver
   const fetchUnitForDriver = async (driverId) => {
@@ -216,7 +234,7 @@ const FuelLogsPage = () => {
     return null;
   };
 
-  // Fetch Drivers List
+  // Fetch Drivers List - UPDATED TO ALLOW MULTIPLE EXPENSES PER DAY
   useEffect(() => {
     const fetchDrivers = async () => {
       try {
@@ -224,27 +242,15 @@ const FuelLogsPage = () => {
         const q = query(usersRef, where("role", "in", ["Driver", "Reliever"]));
         const snapshot = await getDocs(q);
 
-        const today = getTodayDate();
         const drivers = [];
 
         for (const docSnap of snapshot.docs) {
           const d = { uid: docSnap.id, ...docSnap.data() };
 
           const unit = await fetchUnitForDriver(d.uid);
-          if (!unit) continue;
+          if (!unit) continue; // Only include drivers with dispatched units
 
           const fullName = `${d.firstName} ${d.lastName}`;
-
-          const hasLogToday = logs.some((l) => {
-            const logDate = l.timestamp?.toDate
-              ? l.timestamp.toDate().toISOString().split("T")[0]
-              : null;
-            return (
-              l.Driver?.trim().toLowerCase() ===
-                fullName.trim().toLowerCase() && logDate === today
-            );
-          });
-          if (hasLogToday) continue;
 
           drivers.push({
             uid: d.uid,
@@ -259,10 +265,10 @@ const FuelLogsPage = () => {
       }
     };
 
-    if (unitData.length > 0) {
+    if (unitData.length > 0 && userName !== "Unknown User") {
       fetchDrivers();
     }
-  }, [logs, unitData]);
+  }, [logs, unitData, userName]);
 
   // Fetch Latest Fuel Price
   useEffect(() => {
@@ -350,9 +356,12 @@ const FuelLogsPage = () => {
     }
   };
 
-  // Filtered Logs
+  // Filtered Logs - Only show current user's logs
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
+      // Ensure only current user's logs are shown
+      if (log.officer !== userName) return false;
+
       const matchesSearch = search
         ? log.driver.toLowerCase().includes(search.toLowerCase()) ||
           log.officer.toLowerCase().includes(search.toLowerCase()) ||
@@ -366,7 +375,7 @@ const FuelLogsPage = () => {
 
       return matchesSearch && matchesDate;
     });
-  }, [logs, search, dateFilter]);
+  }, [logs, search, dateFilter, userName]);
 
   // Add row numbers for display
   const filteredWithRowNumber = useMemo(
@@ -395,9 +404,10 @@ const FuelLogsPage = () => {
   const closeAddExpense = () => {
     setIsAddExpenseOpen(false);
     setForm({ driver: "", amount: "" });
+    setSelectedVehicle("N/A");
   };
 
-  // Save Fuel Expense (FIXED - removed fuelStatus update)
+  // Save Fuel Expense - ALLOW MULTIPLE EXPENSES PER DRIVER PER DAY
   const saveFuelExpense = async () => {
     try {
       setSaving(true);
@@ -424,15 +434,12 @@ const FuelLogsPage = () => {
       await addDoc(collection(db, "fuelLogs"), {
         Driver: selectedDriver.fullName,
         driverId: selectedDriver.uid,
-        Officer: userName,
+        Officer: userName, // Store current user's name
         Vehicle: unit,
         fuelAmount: parseFloat(form.amount),
         status: "done",
         timestamp: serverTimestamp(),
       });
-
-      // REMOVED: The fuelStatus update to driver document
-      // await updateDoc(driverRef, { fuelStatus: "done" });
 
       await logSystemActivity(
         `Added fuel expense: ₱${parseFloat(form.amount).toFixed(2)} for ${selectedDriver.fullName}`,
@@ -442,6 +449,7 @@ const FuelLogsPage = () => {
       showToast("Fuel expense saved successfully!");
       setIsAddExpenseOpen(false);
       setForm({ driver: "", amount: "" });
+      setSelectedVehicle("N/A");
     } catch (err) {
       console.error("Error saving fuel expense:", err);
       showError("Failed to save fuel expense.");
@@ -450,7 +458,7 @@ const FuelLogsPage = () => {
     }
   };
 
-  // Export functions
+  // Export functions with firstName, middleName, lastName format
   const headers = [
     "ID",
     "Timestamp",
@@ -472,6 +480,15 @@ const FuelLogsPage = () => {
     ];
   });
 
+  // Format exported by name
+  const getFormattedExportedByName = () => {
+    const { firstName, middleName, lastName } = currentUserFullName;
+    if (middleName) {
+      return `${firstName} ${middleName} ${lastName}`;
+    }
+    return `${firstName} ${lastName}`;
+  };
+
   const toggleDropdown = () => {
     setIsDropdownOpen((prev) => !prev);
   };
@@ -482,11 +499,14 @@ const FuelLogsPage = () => {
         headers,
         rows,
         "Fuel-Logs-Report.csv",
-        currentUser?.email || "Unknown",
+        getFormattedExportedByName(),
         "Fuel-Logs-Report"
       );
 
-      await logSystemActivity("Exported Fuel Logs to CSV", userName);
+      await logSystemActivity(
+        "Exported Fuel Logs to CSV",
+        getFormattedExportedByName()
+      );
 
       setIsDropdownOpen(false);
       showToast("Fuel logs exported to CSV successfully!");
@@ -503,10 +523,13 @@ const FuelLogsPage = () => {
         rows,
         "Fuel-Logs-Report",
         "Fuel-Logs-Report.pdf",
-        currentUser?.email || "Unknown"
+        getFormattedExportedByName()
       );
 
-      await logSystemActivity("Exported Fuel Logs to PDF", userName);
+      await logSystemActivity(
+        "Exported Fuel Logs to PDF",
+        getFormattedExportedByName()
+      );
 
       setIsDropdownOpen(false);
       showToast("Fuel logs exported to PDF successfully!");
@@ -804,7 +827,7 @@ const FuelLogsPage = () => {
                         Add Fuel Expense
                       </h2>
                       <p className="text-xs text-gray-500">
-                        Record fuel expense for a driver.
+                        Record fuel expense for a driver. Multiple expenses per day are allowed.
                       </p>
                     </div>
                   </div>
@@ -845,7 +868,7 @@ const FuelLogsPage = () => {
                         ))
                       ) : (
                         <option value="" disabled>
-                          No available drivers today
+                          No drivers with dispatched units
                         </option>
                       )}
                     </select>
