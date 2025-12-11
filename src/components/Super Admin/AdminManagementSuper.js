@@ -60,6 +60,7 @@ export default function AdminManagementSuper() {
   const [viewing, setViewing] = useState(null);
   const [edit, setEdit] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editErrors, setEditErrors] = useState({});
 
   const [form, setForm] = useState({
     firstName: "",
@@ -175,6 +176,7 @@ export default function AdminManagementSuper() {
             middleName: x.middleName,
             lastName: x.lastName,
             address: x.address,
+            isLogged: x.isLogged || false,
           });
         });
 
@@ -282,18 +284,24 @@ export default function AdminManagementSuper() {
       alert("No data to export.");
       return;
     }
+    
+    // Get the full name for the exportedBy parameter
+    const exportedBy = user && user.firstName && user.lastName 
+      ? `${user.firstName} ${user.middleName ? user.middleName + ' ' : ''}${user.lastName}`.trim()
+      : currentUser?.email || "Unknown User";
+    
     exportToCSV(
       headers,
       exportRows,
       "Admin_Management.csv",
-      currentUser?.email || "Unknown",
+      exportedBy,
       "Admin Management"
     );
 
     if (user) {
       try {
         const userFullName = user.firstName && user.lastName 
-          ? `${user.firstName} ${user.lastName}`.trim()
+          ? `${user.firstName} ${user.middleName ? user.middleName + ' ' : ''}${user.lastName}`.trim()
           : currentUser?.email || "Unknown User";
 
         await logSystemActivity(
@@ -312,18 +320,24 @@ export default function AdminManagementSuper() {
       alert("No data to export.");
       return;
     }
+    
+    // Get the full name for the exportedBy parameter
+    const exportedBy = user && user.firstName && user.lastName 
+      ? `${user.firstName} ${user.middleName ? user.middleName + ' ' : ''}${user.lastName}`.trim()
+      : currentUser?.email || "Unknown User";
+    
     exportToPDF(
       headers,
       exportRows,
       "Admin Management",
       "Admin_Management.pdf",
-      currentUser?.email || "Unknown"
+      exportedBy
     );
 
     if (user) {
       try {
         const userFullName = user.firstName && user.lastName 
-          ? `${user.firstName} ${user.lastName}`.trim()
+          ? `${user.firstName} ${user.middleName ? user.middleName + ' ' : ''}${user.lastName}`.trim()
           : currentUser?.email || "Unknown User";
 
         await logSystemActivity(
@@ -403,6 +417,7 @@ export default function AdminManagementSuper() {
               address: row.address,
               password: "",
             });
+            setEditErrors({});
           }}
           title="Edit"
           className="inline-flex items-center justify-center h-9 px-3 rounded-full border border-gray-200 bg-white text-gray-700 hover:shadow-md transition text-sm font-semibold"
@@ -574,6 +589,13 @@ export default function AdminManagementSuper() {
 
   const saveEdits = async () => {
     if (!viewing || !edit) return;
+    
+    // Check if user is logged in and trying to change status to Inactive
+    if (viewing.isLogged && edit.status === "Inactive") {
+      setEditErrors({ status: "Cannot set status to Inactive while user is logged in" });
+      return;
+    }
+
     if (!edit.firstName || !edit.lastName || !edit.email) {
       alert("First name, last name, and email are required.");
       return;
@@ -638,6 +660,7 @@ export default function AdminManagementSuper() {
 
       setViewing(null);
       setEdit(null);
+      setEditErrors({});
 
       setToastMessage("Admin details updated successfully!");
       setShowSuccessToast(true);
@@ -658,6 +681,24 @@ export default function AdminManagementSuper() {
     } finally {
       setSavingEdit(false);
     }
+  };
+
+  // Handle status change in edit form with validation
+  const handleStatusChange = (e) => {
+    const newStatus = e.target.value;
+    
+    // Check if user is logged in and trying to change to Inactive
+    if (viewing?.isLogged && newStatus === "Inactive") {
+      setEditErrors({ status: "Cannot set status to Inactive while user is logged in" });
+      return;
+    }
+    
+    // Clear error if it exists and status is being changed to Active
+    if (editErrors.status) {
+      setEditErrors({});
+    }
+    
+    setEdit({ ...edit, status: newStatus });
   };
 
   return (
@@ -1119,6 +1160,7 @@ export default function AdminManagementSuper() {
           onClick={() => {
             setViewing(null);
             setEdit(null);
+            setEditErrors({});
           }}
         >
           <div
@@ -1225,12 +1267,22 @@ export default function AdminManagementSuper() {
                 <select
                   name="status"
                   value={edit.status}
-                  onChange={(e) => setEdit({ ...edit, status: e.target.value })}
-                  className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300"
+                  onChange={handleStatusChange}
+                  className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300 ${
+                    editErrors.status ? "border-red-500" : "border-gray-200"
+                  }`}
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                 </select>
+                {editErrors.status && (
+                  <p className="text-red-500 text-xs mt-1">{editErrors.status}</p>
+                )}
+                {viewing.isLogged && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    Note: This user is currently logged in
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1240,6 +1292,7 @@ export default function AdminManagementSuper() {
                 onClick={() => {
                   setViewing(null);
                   setEdit(null);
+                  setEditErrors({});
                 }}
                 disabled={savingEdit}
               >
@@ -1249,7 +1302,8 @@ export default function AdminManagementSuper() {
                 className="px-4 py-2 rounded-lg text-white hover:opacity-95 disabled:opacity-60 inline-flex items-center gap-2"
                 style={{ backgroundColor: primaryColor }}
                 onClick={saveEdits}
-                disabled={savingEdit}
+                disabled={savingEdit || viewing?.isLogged}
+                title={viewing?.isLogged ? "Cannot save changes while user is logged in" : ""}
               >
                 {savingEdit && (
                   <svg
@@ -1272,7 +1326,7 @@ export default function AdminManagementSuper() {
                     />
                   </svg>
                 )}
-                {savingEdit ? "Saving..." : "Save"}
+                {savingEdit ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </div>

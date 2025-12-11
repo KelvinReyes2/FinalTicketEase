@@ -7,7 +7,7 @@ import {
 import { Outlet, useLocation } from "react-router-dom";
 import DataTable from "react-data-table-component";
 import { FaEdit } from "react-icons/fa";
-import { query, where, getDocs , updateDoc} from "firebase/firestore";
+import { query, where, getDocs, updateDoc } from "firebase/firestore";
 import "jspdf-autotable";
 import { db } from "../../firebase";
 import {
@@ -68,12 +68,11 @@ export default function UserManagement() {
     }
 
     try {
-      
       const userDocRef = doc(db, "users", currentUser.uid);
       const userDocSnap = await getDoc(userDocRef);
-        await updateDoc(userDocRef, {
-                  isLogged: false,
-                });
+      await updateDoc(userDocRef, {
+        isLogged: false,
+      });
       if (userDocSnap.exists()) {
         const userData = userDocSnap.data();
         setUserRole(userData.role || "User"); // Default to "User" if role not found
@@ -129,6 +128,7 @@ export default function UserManagement() {
   const [user, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
+  const [currentUserData, setCurrentUserData] = useState(null); // For exporting user info
 
   const [search, setSearch] = useState("");
   const [filterBy, setFilterBy] = useState("");
@@ -139,6 +139,7 @@ export default function UserManagement() {
   const [viewing, setViewing] = useState(null);
   const [edit, setEdit] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editErrors, setEditErrors] = useState({}); // Added for edit form errors
 
   const [form, setForm] = useState({
     firstName: "",
@@ -164,6 +165,26 @@ export default function UserManagement() {
     return 0;
   };
 
+  // Fetch current user data for exporting
+  useEffect(() => {
+    const fetchCurrentUserData = async () => {
+      try {
+        const user = auth.currentUser;
+        if (user) {
+          const docRef = doc(db, "users", user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setCurrentUserData(docSnap.data());
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching current user:", err);
+      }
+    };
+
+    fetchCurrentUserData();
+  }, []);
+
   useEffect(() => {
     if (!isUserPage) return;
     const unsub = onSnapshot(
@@ -188,6 +209,7 @@ export default function UserManagement() {
               middleName: x.middleName,
               lastName: x.lastName,
               address: x.address,
+              isLogged: x.isLogged || false, // Added isLogged field
             });
           }
         });
@@ -234,28 +256,34 @@ export default function UserManagement() {
     Cashier: ["View Dashboard", "Fuel Logs"],
   };
 
-  // FIXED: Use filteredWithRowNumber for export data instead of original user array
+  // UPDATED: Export headers with separate name fields
   const headers = [
     "ID",
-    "Username",
+    "First Name",
+    "Middle Name",
+    "Last Name",
     "Email",
     "Role",
     "Status",
     "Tel No",
     "Address",
     "Created At",
+    "Login Status"
   ];
 
-  // Use filtered data for export
+  // UPDATED: Use filtered data for export with separate name fields
   const exportRows = filteredWithRowNumber.map((user) => [
     user._row,
-    user.displayName,
+    user.firstName || "",
+    user.middleName || "",
+    user.lastName || "",
     user.email,
     user.role,
     user.status,
     user.telNo,
     user.address,
     new Date(user.createdAt).toLocaleString(),
+    user.isLogged ? "Logged In" : "Logged Out"
   ]);
 
   // Enhanced export functions with role mapping and system logging
@@ -266,11 +294,16 @@ export default function UserManagement() {
         return;
       }
 
+      // Get the full name for the exportedBy parameter
+      const exportedBy = currentUserData && currentUserData.firstName && currentUserData.lastName 
+        ? `${currentUserData.firstName} ${currentUserData.middleName ? currentUserData.middleName + ' ' : ''}${currentUserData.lastName}`.trim()
+        : currentUser?.email || "Unknown User";
+
       await exportToCSV(
         headers,
         exportRows,
         "User-Management-Report.csv",
-        currentUserEmail,
+        exportedBy,
         "User Management Report"
       );
 
@@ -290,12 +323,17 @@ export default function UserManagement() {
         return;
       }
 
+      // Get the full name for the exportedBy parameter
+      const exportedBy = currentUserData && currentUserData.firstName && currentUserData.lastName 
+        ? `${currentUserData.firstName} ${currentUserData.middleName ? currentUserData.middleName + ' ' : ''}${currentUserData.lastName}`.trim()
+        : currentUser?.email || "Unknown User";
+
       await exportToPDF(
         headers,
         exportRows,
         "User-Management-Report",
         "User-Management-Report.pdf",
-        currentUserEmail
+        exportedBy
       );
 
       // Log the export activity
@@ -399,6 +437,7 @@ export default function UserManagement() {
               address: row.address,
               password: "",
             });
+            setEditErrors({}); // Clear previous errors
           }}
           title="Edit"
           className="inline-flex items-center justify-center h-9 px-3 rounded-full border border-gray-200 bg-white text-gray-700 hover:shadow-md transition text-sm font-semibold"
@@ -571,9 +610,16 @@ export default function UserManagement() {
     }
   };
 
-  // Save edits + DIRECT password update behavior
+  // Save edits with validation for logged-in users
   const saveEdits = async () => {
     if (!viewing || !edit) return;
+    
+    // Check if user is logged in and trying to change status to Inactive
+    if (viewing.isLogged && edit.status === "Inactive") {
+      setEditErrors({ status: "Cannot set status to Inactive while user is logged in" });
+      return;
+    }
+
     if (!edit.firstName || !edit.lastName || !edit.email) {
       alert("First name, last name, and email are required.");
       return;
@@ -650,6 +696,7 @@ export default function UserManagement() {
 
       setViewing(null);
       setEdit(null);
+      setEditErrors({});
       setToastMessage("User details updated successfully!");
       setShowSuccessToast(true);
       setTimeout(() => setShowSuccessToast(false), 3000);
@@ -659,6 +706,24 @@ export default function UserManagement() {
     } finally {
       setSavingEdit(false);
     }
+  };
+
+  // Handle status change in edit form with validation
+  const handleStatusChange = (e) => {
+    const newStatus = e.target.value;
+    
+    // Check if user is logged in and trying to change to Inactive
+    if (viewing?.isLogged && newStatus === "Inactive") {
+      setEditErrors({ status: "Cannot set status to Inactive while user is logged in" });
+      return;
+    }
+    
+    // Clear error if it exists and status is being changed to Active
+    if (editErrors.status) {
+      setEditErrors({});
+    }
+    
+    setEdit({ ...edit, status: newStatus });
   };
 
   return (
@@ -821,6 +886,14 @@ export default function UserManagement() {
             <div className="text-sm">
               <div className="font-semibold">{toastMessage}</div>
             </div>
+            <button
+              onClick={() => setShowSuccessToast(false)}
+              className="ml-auto text-green-600 hover:text-green-800"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5z" />
+              </svg>
+            </button>
           </div>
         </div>
       )}
@@ -1108,6 +1181,7 @@ export default function UserManagement() {
           onClick={() => {
             setViewing(null);
             setEdit(null);
+            setEditErrors({});
           }}
         >
           <div
@@ -1214,12 +1288,22 @@ export default function UserManagement() {
                 <select
                   name="status"
                   value={edit.status}
-                  onChange={(e) => setEdit({ ...edit, status: e.target.value })}
-                  className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300"
+                  onChange={handleStatusChange}
+                  className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300 ${
+                    editErrors.status ? "border-red-500" : "border-gray-200"
+                  }`}
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                 </select>
+                {editErrors.status && (
+                  <p className="text-red-500 text-xs mt-1">{editErrors.status}</p>
+                )}
+                {viewing.isLogged && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    Note: This user is currently logged in
+                  </p>
+                )}
               </div>
 
               <div className="col-span-1">
@@ -1244,16 +1328,18 @@ export default function UserManagement() {
                 onClick={() => {
                   setViewing(null);
                   setEdit(null);
+                  setEditErrors({});
                 }}
                 disabled={savingEdit}
               >
                 Cancel
               </button>
               <button
-                className="px-4 py-2 rounded-lg text-white hover:opacity-95 disabled:opacity-60 inline-flex items-center gap-2"
+                className="px-4 py-2 rounded-lg text-white hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
                 style={{ backgroundColor: primaryColor }}
                 onClick={saveEdits}
-                disabled={savingEdit}
+                disabled={savingEdit || viewing?.isLogged}
+                title={viewing?.isLogged ? "Cannot save changes while user is logged in" : ""}
               >
                 {savingEdit && (
                   <svg
@@ -1276,7 +1362,7 @@ export default function UserManagement() {
                     />
                   </svg>
                 )}
-                {savingEdit ? "Saving..." : "Save"}
+                {savingEdit ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </div>
