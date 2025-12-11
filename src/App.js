@@ -91,41 +91,6 @@ function App() {
     return () => unsub();
   }, []);
 
-  // Listen to current user's status changes in real-time
-  useEffect(() => {
-    if (!user?.uid) return;
-
-    const userDocRef = doc(db, "users", user.uid);
-    const unsubscribe = onSnapshot(
-      userDocRef,
-      async (snapshot) => {
-        if (snapshot.exists()) {
-          const userData = snapshot.data();
-          
-          // Check if user status is "Inactive"
-          if (userData.status === "Inactive") {
-            // Log out the user immediately
-            try {
-              await updateDoc(userDocRef, {
-                isLogged: false,
-                lastLogoutTime: serverTimestamp(),
-              });
-              await signOut(auth);
-              // User will be redirected to login page automatically
-            } catch (error) {
-              console.error("Error logging out user:", error);
-            }
-          }
-        }
-      },
-      (error) => {
-        console.error("Error listening to user status:", error);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [user?.uid]);
-
   // Handle maintenance mode for logged-in users (except Super Admin)
   useEffect(() => {
     const handleMaintenanceMode = async () => {
