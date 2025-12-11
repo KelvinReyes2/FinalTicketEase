@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import DataTable from "react-data-table-component";
-import { FaEye, FaTimes, FaHistory } from "react-icons/fa";
+import { FaEye, FaTimes, FaHistory, FaFilter } from "react-icons/fa";
 import { formatDistanceToNow, format } from "date-fns";
 import { exportToCSV, exportToPDF } from "../functions/exportFunctions";
 
@@ -31,6 +31,7 @@ export default function ActivityLogSuper() {
 
   const [filterStartDate, setFilterStartDate] = useState(getTodayDate()); // Default to today's date
   const [filterEndDate, setFilterEndDate] = useState(""); // End date filter
+  const [filterRole, setFilterRole] = useState(""); // Role filter
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [user, setCurrentUser] = useState(null);
@@ -90,6 +91,7 @@ export default function ActivityLogSuper() {
     setSearch("");
     setFilterStartDate(getTodayDate());
     setFilterEndDate("");
+    setFilterRole("");
   };
 
   // Helper function to convert date to local YYYY-MM-DD format
@@ -215,6 +217,16 @@ export default function ActivityLogSuper() {
     fetchCurrentUser();
   }, []);
 
+  // Define available roles
+  const availableRoles = [
+    "Cashier",
+    "Driver",
+    "Inspector",
+    "Reliever",
+    "System Admin",
+    "Super Admin"
+  ];
+
   const filteredLogs = useMemo(() => {
     const q = search.trim().toLowerCase();
     return logs.filter((log) => {
@@ -249,9 +261,12 @@ export default function ActivityLogSuper() {
         }
       }
 
-      return matchesSearch && matchesDateFilter;
+      // Role filter
+      const matchesRoleFilter = !filterRole || log.role === filterRole;
+
+      return matchesSearch && matchesDateFilter && matchesRoleFilter;
     });
-  }, [logs, search, filterStartDate, filterEndDate]);
+  }, [logs, search, filterStartDate, filterEndDate, filterRole]);
 
   // Define the headers for export
   const headers = ["Timestamp", "User", "Role", "Activity"];
@@ -264,72 +279,72 @@ export default function ActivityLogSuper() {
     log.activity || "No activity description",
   ]);
 
- // CSV Export
-const handleExportToCSV = async () => {
-  if (!filteredLogs || filteredLogs.length === 0) {
-    alert("No data to export.");
-    return;
-  }
-
-  exportToCSV(
-    headers,
-    exportRows,
-    "Activity_Log.csv",
-    currentUser?.email || "Unknown",
-    "Activity Log",
-    filterStartDate,
-    filterEndDate
-  );
-
-  if (user) {
-    try {
-      const userFullName = user.firstName && user.lastName 
-        ? `${user.firstName} ${user.lastName}`.trim()
-        : currentUser?.email || "Unknown User";
-
-      await logSystemActivity(
-        "Exported Activity Log Report to CSV",
-        userFullName
-      );
-      console.log("Export log saved successfully.");
-    } catch (err) {
-      console.error("Failed to save export log:", err);
+  // CSV Export
+  const handleExportToCSV = async () => {
+    if (!filteredLogs || filteredLogs.length === 0) {
+      alert("No data to export.");
+      return;
     }
-  }
-};
 
-// PDF Export
-const handleExportToPDF = async () => {
-  if (!filteredLogs || filteredLogs.length === 0) {
-    alert("No data to export.");
-    return;
-  }
-  exportToPDF(
-    headers,
-    exportRows,
-    "Activity Log",
-    "Activity_Log.pdf",
-    currentUser?.email || "Unknown",
-    filterStartDate,
-    filterEndDate
-  );
+    exportToCSV(
+      headers,
+      exportRows,
+      "Activity_Log.csv",
+      currentUser?.email || "Unknown",
+      "Activity Log",
+      filterStartDate,
+      filterEndDate
+    );
 
-  if (user) {
-    try {
-      const userFullName = user.firstName && user.lastName 
-        ? `${user.firstName} ${user.lastName}`.trim()
-        : currentUser?.email || "Unknown User";
+    if (user) {
+      try {
+        const userFullName = user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}`.trim()
+          : currentUser?.email || "Unknown User";
 
-      await logSystemActivity(
-        "Exported Activity Log Report to PDF",
-        userFullName
-      );
-      console.log("Export log saved successfully.");
-    } catch (err) {
-      console.error("Failed to save export log:", err);
+        await logSystemActivity(
+          "Exported Activity Log Report to CSV",
+          userFullName
+        );
+        console.log("Export log saved successfully.");
+      } catch (err) {
+        console.error("Failed to save export log:", err);
+      }
     }
-  }
-};
+  };
+
+  // PDF Export
+  const handleExportToPDF = async () => {
+    if (!filteredLogs || filteredLogs.length === 0) {
+      alert("No data to export.");
+      return;
+    }
+    exportToPDF(
+      headers,
+      exportRows,
+      "Activity Log",
+      "Activity_Log.pdf",
+      currentUser?.email || "Unknown",
+      filterStartDate,
+      filterEndDate
+    );
+
+    if (user) {
+      try {
+        const userFullName = user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}`.trim()
+          : currentUser?.email || "Unknown User";
+
+        await logSystemActivity(
+          "Exported Activity Log Report to PDF",
+          userFullName
+        );
+        console.log("Export log saved successfully.");
+      } catch (err) {
+        console.error("Failed to save export log:", err);
+      }
+    }
+  };
 
   const columns = [
     {
@@ -440,6 +455,8 @@ const handleExportToPDF = async () => {
     },
   };
 
+
+
   return (
     <div className="flex bg-gray-100 min-h-screen">
       <main className="flex-1 p-10">
@@ -448,26 +465,30 @@ const handleExportToPDF = async () => {
             className="bg-white border rounded-xl shadow-sm flex flex-col"
             style={{ minHeight: "calc(100vh - 112px)" }}
           >
-            <div className="px-6 pt-6 pb-4 border-b flex items-center justify-between">
-              <h1 className="text-2xl font-semibold text-gray-800">
-                Activity Log
-              </h1>
-              <div className="flex items-center gap-4">
-                <input
-                  type="text"
-                  placeholder="Search Log"
-                  className="w-[420px] rounded-full border border-gray-200 pl-10 pr-3 py-2.5 text-sm shadow-sm focus:ring-4 focus:ring-blue-100 focus:border-blue-300 outline-none mt-7"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-                <div className="flex items-center gap-3">
+            <div className="px-6 pt-6 pb-4 border-b">
+              <div className="flex items-center justify-between mb-4">
+                <h1 className="text-2xl font-semibold text-gray-800">
+                  Activity Log
+                </h1>
+
+                {/* Filters Section */}
+                <div className="flex items-end gap-3">
+                  <div className="w-[280px]">
+                    <input
+                      type="text"
+                      placeholder="Search Log"
+                      className="w-full rounded-full border border-gray-200 pl-10 pr-3 py-2.5 text-sm shadow-sm focus:ring-4 focus:ring-blue-100 focus:border-blue-300 outline-none"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
                   <div className="flex flex-col">
                     <label className="text-sm font-medium text-gray-700 mb-1">
                       Start Date
                     </label>
                     <input
                       type="date"
-                      className="w-[160px] rounded-lg border border-gray-200 px-3 py-2.5 text-sm shadow-sm focus:ring-4 focus:ring-blue-100 focus:border-blue-300 outline-none"
+                      className="w-[140px] rounded-lg border border-gray-200 px-3 py-2.5 text-sm shadow-sm focus:ring-4 focus:ring-blue-100 focus:border-blue-300 outline-none"
                       value={filterStartDate}
                       onChange={(e) => setFilterStartDate(e.target.value)}
                     />
@@ -478,57 +499,66 @@ const handleExportToPDF = async () => {
                     </label>
                     <input
                       type="date"
-                      className="w-[160px] rounded-lg border border-gray-200 px-3 py-2.5 text-sm shadow-sm focus:ring-4 focus:ring-blue-100 focus:border-blue-300 outline-none"
+                      className="w-[140px] rounded-lg border border-gray-200 px-3 py-2.5 text-sm shadow-sm focus:ring-4 focus:ring-blue-100 focus:border-blue-300 outline-none"
                       value={filterEndDate}
                       onChange={(e) => setFilterEndDate(e.target.value)}
                     />
                   </div>
-
-                  {/* Reset Filters Button */}
                   <div className="flex flex-col">
-                    <label className="text-sm font-medium text-gray-700 mb-1 opacity-0">
-                      Reset
+                    <label className="text-sm font-medium text-gray-700 mb-1">
+                      Role
                     </label>
-                    <button
-                      onClick={resetFilters}
-                      className="px-4 py-2 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600 transition duration-200 shadow-md"
+                    <select
+                      className="w-[140px] rounded-lg border border-gray-200 px-3 py-2.5 text-sm shadow-sm focus:ring-4 focus:ring-blue-100 focus:border-blue-300 outline-none"
+                      value={filterRole}
+                      onChange={(e) => setFilterRole(e.target.value)}
                     >
-                      Reset Filters
-                    </button>
+                      <option value="">All Roles</option>
+                      {availableRoles.map((role) => (
+                        <option key={role} value={role}>
+                          {role}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                </div>
-
-                <div className="relative">
                   <button
-                    onClick={toggleDropdown}
-                    className="flex items-center gap-2 px-6 py-2 rounded-lg text-white shadow-md hover:shadow-lg transition mt-7"
-                    style={{ backgroundColor: primaryColor }}
+                    onClick={resetFilters}
+                    className="px-4 py-2.5 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600 transition duration-200 shadow-md whitespace-nowrap"
                   >
-                    <span className="font-semibold">Export</span>
+                    Reset Filters
                   </button>
+                  <div className="relative">
+                    <button
+                      onClick={toggleDropdown}
+                      className="flex items-center gap-2 px-6 py-2.5 rounded-lg text-white shadow-md hover:shadow-lg transition"
+                      style={{ backgroundColor: primaryColor }}
+                    >
+                      <span className="font-semibold">Export</span>
+                    </button>
 
-                  {isDropdownOpen && (
-                    <div className="absolute right-0 w-40 mt-2 bg-white shadow-lg rounded-lg z-10">
-                      <ul className="text-sm">
-                        <li>
-                          <button
-                            onClick={handleExportToCSV}
-                            className="block px-4 py-2 text-gray-800 hover:bg-gray-100 w-full text-left"
-                          >
-                            Export to Excel
-                          </button>
-                        </li>
-                        <li>
-                          <button
-                            onClick={handleExportToPDF}
-                            className="block px-4 py-2 text-gray-800 hover:bg-gray-100 w-full text-left"
-                          >
-                            Export to PDF
-                          </button>
-                        </li>
-                      </ul>
-                    </div>
-                  )}
+                    {isDropdownOpen && (
+                      <div className="absolute right-0 w-40 mt-2 bg-white shadow-lg rounded-lg z-10">
+                        <ul className="text-sm">
+                          <li>
+                            <button
+                              onClick={handleExportToCSV}
+                              className="block px-4 py-2 text-gray-800 hover:bg-gray-100 w-full text-left"
+                            >
+                              Export to Excel
+                            </button>
+                          </li>
+                          <li>
+                            <button
+                              onClick={handleExportToPDF}
+                              className="block px-4 py-2 text-gray-800 hover:bg-gray-100 w-full text-left"
+                            >
+                              Export to PDF
+                            </button>
+                          </li>
+                        </ul>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
