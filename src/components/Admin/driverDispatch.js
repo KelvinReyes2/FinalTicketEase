@@ -32,6 +32,7 @@ export default function DriverDispatch() {
   const [loading, setLoading] = useState(true);
   const [err] = useState(null);
   const [userRole, setUserRole] = useState("User");
+  const [currentUserData, setCurrentUserData] = useState(null); // For exporting user info
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
@@ -120,6 +121,26 @@ export default function DriverDispatch() {
       console.error("Error logging system activity:", error);
     }
   };
+
+  // Fetch current user data for exporting
+  useEffect(() => {
+    const fetchCurrentUserData = async () => {
+      try {
+        const user = auth.currentUser;
+        if (user) {
+          const docRef = doc(db, "users", user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setCurrentUserData(docSnap.data());
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching current user:", err);
+      }
+    };
+
+    fetchCurrentUserData();
+  }, []);
 
   // Fetch user role on component mount
   useEffect(() => {
@@ -669,11 +690,16 @@ export default function DriverDispatch() {
         new Date(log.assignedAt).toLocaleString(),
       ]);
 
+      // Get the full name for the exportedBy parameter
+      const exportedBy = currentUserData && currentUserData.firstName && currentUserData.lastName 
+        ? `${currentUserData.firstName} ${currentUserData.middleName ? currentUserData.middleName + ' ' : ''}${currentUserData.lastName}`.trim()
+        : currentUser?.email || "Unknown User";
+
       exportToCSV(
         headers,
         rows,
         "Unit-History-Report.csv",
-        userName,
+        exportedBy,
         "Unit-History-Report"
       );
 
@@ -704,12 +730,17 @@ export default function DriverDispatch() {
         new Date(log.assignedAt).toLocaleString(),
       ]);
 
+      // Get the full name for the exportedBy parameter
+      const exportedBy = currentUserData && currentUserData.firstName && currentUserData.lastName 
+        ? `${currentUserData.firstName} ${currentUserData.middleName ? currentUserData.middleName + ' ' : ''}${currentUserData.lastName}`.trim()
+        : currentUser?.email || "Unknown User";
+
       exportToPDF(
         headers,
         rows,
         "Unit-History-Report",
         "Unit-History-Report.pdf",
-        userName
+        exportedBy
       );
 
       await logSystemActivity("Exported Unit History Report to PDF", userName);

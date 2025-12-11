@@ -50,6 +50,7 @@ export default function VehicleManagement() {
   const [viewing, setViewing] = useState(null);
   const [edit, setEdit] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [currentUserData, setCurrentUserData] = useState(null); // Added for user data
 
   const location = useLocation();
   const primaryColor = "#364C6E";
@@ -61,8 +62,6 @@ export default function VehicleManagement() {
 
   const auth = getAuth();
   const currentUser = auth.currentUser;
-  const userName =
-    currentUser?.displayName || currentUser?.email || "Unknown User";
 
   const toMillis = (v) => {
     if (!v) return 0;
@@ -74,6 +73,26 @@ export default function VehicleManagement() {
       return v.seconds * 1000 + Math.floor((v.nanoseconds || 0) / 1e6);
     return 0;
   };
+
+  // Fetch current user data for exporting
+  useEffect(() => {
+    const fetchCurrentUserData = async () => {
+      try {
+        const user = auth.currentUser;
+        if (user) {
+          const docRef = doc(db, "users", user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setCurrentUserData(docSnap.data());
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching current user:", err);
+      }
+    };
+
+    fetchCurrentUserData();
+  }, []);
 
   // Function to generate next Vehicle ID
   const generateNextVehicleID = async () => {
@@ -206,7 +225,7 @@ export default function VehicleManagement() {
         vehicleID: "",
       });
 
-      await logSystemActivity(`Added new unit: ${unitId}`, userName);
+      await logSystemActivity(`Added new unit: ${unitId}`, getExportedBy());
 
       setToastMessage("New unit added successfully!");
       setShowSuccessToast(true);
@@ -255,6 +274,14 @@ export default function VehicleManagement() {
       return isAvailable || isCurrentVehicleUnit;
     });
   }, [units, viewing]);
+
+  // Get exportedBy full name
+  const getExportedBy = () => {
+    if (currentUserData && currentUserData.firstName && currentUserData.lastName) {
+      return `${currentUserData.firstName} ${currentUserData.middleName ? currentUserData.middleName + ' ' : ''}${currentUserData.lastName}`.trim();
+    }
+    return currentUser?.email || "Unknown User";
+  };
 
   // Load units from unit collection
   useEffect(() => {
@@ -410,15 +437,22 @@ export default function VehicleManagement() {
   // Enhanced export functions with role mapping and system logging
   const handleExportToCSV = async () => {
     try {
+      if (!filteredWithRowNumber || filteredWithRowNumber.length === 0) {
+        alert("No data to export.");
+        return;
+      }
+
+      const exportedBy = getExportedBy();
+
       await exportToCSV(
         headers,
         rows,
         "Vehicle-Management-Report.csv",
-        userName,
+        exportedBy,
         "Vehicle-Management-Report"
       );
 
-      await logSystemActivity("Exported Vehicle Report to CSV", userName);
+      await logSystemActivity("Exported Vehicle Report to CSV", exportedBy);
       setIsDropdownOpen(false);
     } catch (error) {
       console.error("Error exporting to CSV:", error);
@@ -427,15 +461,22 @@ export default function VehicleManagement() {
 
   const handleExportToPDF = async () => {
     try {
+      if (!filteredWithRowNumber || filteredWithRowNumber.length === 0) {
+        alert("No data to export.");
+        return;
+      }
+
+      const exportedBy = getExportedBy();
+
       await exportToPDF(
         headers,
         rows,
         "Vehicle-Management-Report",
         "Vehicle-Management-Report.pdf",
-        userName
+        exportedBy
       );
 
-      await logSystemActivity("Exported Vehicle Report to PDF", userName);
+      await logSystemActivity("Exported Vehicle Report to PDF", exportedBy);
       setIsDropdownOpen(false);
     } catch (error) {
       console.error("Error exporting to PDF:", error);
@@ -672,7 +713,7 @@ export default function VehicleManagement() {
 
       await logSystemActivity(
         `Added new vehicle: ${form.vehicleID.trim()}`,
-        userName
+        getExportedBy()
       );
 
       setToastMessage("New vehicle added successfully!");
@@ -758,7 +799,7 @@ export default function VehicleManagement() {
 
       await logSystemActivity(
         `Updated vehicle: ${viewing.vehicleID}${changesText}`,
-        userName
+        getExportedBy()
       );
 
       setViewing(null);
