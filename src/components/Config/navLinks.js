@@ -32,6 +32,8 @@ import IconSDashboardActive from "../../images/Dashboard Blue.png";
 import IconActivityActive from "../../images/Activity Log Blue.png";
 import IconAdminActive from "../../images/Admin Blue.png";
 import IconMapActive from "../../images/map.png";
+import IconFareActive from "../../images/FareIconActive.png";
+import IconFare from "../../images/FareIcon.png";
 import IconQuotaActive from "../../images/Quota Blue.png";
 import IconUACActive from "../../images/UAC Blue.png";
 import IconKeyActive from "../../images/key blue.png";
@@ -66,6 +68,13 @@ export const navLinks = [
     role: "Super",
     permission: "Manage Routes",
     img: { inactive: IconMap, active: IconMapActive },
+  },
+  {
+    to: "/FareManagementSuper",
+    label: "Fare Management",
+    role: "Super",
+    permission: "Manage Fares",
+    img: { inactive: IconFare, active: IconFareActive },
   },
   {
     to: "/QuotaManagementSuper",

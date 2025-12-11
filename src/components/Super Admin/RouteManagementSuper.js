@@ -177,6 +177,20 @@ export default function RouteManagementSuper() {
     fetchCurrentUser();
   }, []);
 
+  // Function to get the full name for export
+  const getExportedByFullName = () => {
+    if (!user) return "Unknown";
+    
+    const { firstName = "", middleName = "", lastName = "" } = user;
+    
+    // Combine names with proper spacing
+    const fullName = [firstName, middleName, lastName]
+      .filter(name => name && name.trim())
+      .join(" ");
+    
+    return fullName || "Unknown";
+  };
+
   // Filter dropdown options
   const routeOptions = useMemo(
     () => Array.from(new Set(rows.map((r) => r.Route).filter(Boolean))).sort(),
@@ -295,16 +309,20 @@ export default function RouteManagementSuper() {
     r.KM,
     r.Status,
   ]);
+  
   const handleExportToCSV = async () => {
     if (!filtered || filtered.length === 0) {
       alert("No data to export.");
       return;
     }
+    
+    const exportedBy = getExportedByFullName();
+    
     exportToCSV(
       columns,
       exportRows,
       "Route_Management.csv",
-      currentUser.email || "Unknown",
+      exportedBy,
       "Route Management"
     );
 
@@ -326,12 +344,15 @@ export default function RouteManagementSuper() {
       alert("No data to export.");
       return;
     }
+    
+    const exportedBy = getExportedByFullName();
+    
     exportToPDF(
       headers,
       exportRows,
       "Route Management",
       "Route_Management.pdf",
-      currentUser.email || "Unknown"
+      exportedBy
     );
 
     if (user) {

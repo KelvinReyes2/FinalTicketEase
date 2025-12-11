@@ -99,6 +99,7 @@ export default function UACSuper() {
       "View Activity Log",
       "Manage Admins",
       "Manage Routes",
+      "Manage Fares",
       "Manage Quotas",
       "Manage User Access",
       "Password Reset",

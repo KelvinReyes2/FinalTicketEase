@@ -39,6 +39,7 @@ import QuotaManagement from "./components/Super Admin/QuotaManagementSuper";
 import UserAccess from "./components/Super Admin/UACSuper";
 import PassRest from "./components/Super Admin/PasswordSuper";
 import Maintenance from "./components/Super Admin/MaintenanceSuper";
+import FareManagement from "./components/Super Admin/FareManagementSuper";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -346,6 +347,19 @@ function App() {
                 loading={loading}
               >
                 <RouteManagement />
+              </PrivateRoute>
+            }
+          />
+           <Route
+            path="/FareManagementSuper"
+            element={
+              <PrivateRoute
+                allowedRoles={["Super"]}
+                requiredPermission="Manage Fares"
+                user={user}
+                loading={loading}
+              >
+                <FareManagement />
               </PrivateRoute>
             }
           />

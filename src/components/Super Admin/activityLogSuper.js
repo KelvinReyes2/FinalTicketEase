@@ -221,7 +221,6 @@ export default function ActivityLogSuper() {
   const availableRoles = [
     "Cashier",
     "Driver",
-    "Inspector",
     "Reliever",
     "System Admin",
     "Super Admin"
@@ -279,6 +278,16 @@ export default function ActivityLogSuper() {
     log.activity || "No activity description",
   ]);
 
+  // Helper function to get the full name for exporting
+  const getExportedByFullName = () => {
+    if (user && user.firstName && user.lastName) {
+      // Combine firstName, middleName (if exists), and lastName
+      const middleName = user.middleName ? ` ${user.middleName} ` : ' ';
+      return `${user.firstName}${middleName}${user.lastName}`.trim();
+    }
+    return currentUser?.email || "Unknown User";
+  };
+
   // CSV Export
   const handleExportToCSV = async () => {
     if (!filteredLogs || filteredLogs.length === 0) {
@@ -286,11 +295,13 @@ export default function ActivityLogSuper() {
       return;
     }
 
+    const exportedBy = getExportedByFullName();
+
     exportToCSV(
       headers,
       exportRows,
       "Activity_Log.csv",
-      currentUser?.email || "Unknown",
+      exportedBy,
       "Activity Log",
       filterStartDate,
       filterEndDate
@@ -298,13 +309,9 @@ export default function ActivityLogSuper() {
 
     if (user) {
       try {
-        const userFullName = user.firstName && user.lastName 
-          ? `${user.firstName} ${user.lastName}`.trim()
-          : currentUser?.email || "Unknown User";
-
         await logSystemActivity(
           "Exported Activity Log Report to CSV",
-          userFullName
+          exportedBy
         );
         console.log("Export log saved successfully.");
       } catch (err) {
@@ -319,25 +326,24 @@ export default function ActivityLogSuper() {
       alert("No data to export.");
       return;
     }
+
+    const exportedBy = getExportedByFullName();
+
     exportToPDF(
       headers,
       exportRows,
       "Activity Log",
       "Activity_Log.pdf",
-      currentUser?.email || "Unknown",
+      exportedBy,
       filterStartDate,
       filterEndDate
     );
 
     if (user) {
       try {
-        const userFullName = user.firstName && user.lastName 
-          ? `${user.firstName} ${user.lastName}`.trim()
-          : currentUser?.email || "Unknown User";
-
         await logSystemActivity(
           "Exported Activity Log Report to PDF",
-          userFullName
+          exportedBy
         );
         console.log("Export log saved successfully.");
       } catch (err) {
