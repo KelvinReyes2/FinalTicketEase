@@ -16,7 +16,7 @@ import {
   getDoc,
   doc,
 } from "firebase/firestore";
-import { Wallet, Shield, RotateCcw, Calendar, Percent } from "lucide-react";
+import { Wallet, Shield, RotateCcw, Calendar, Percent, TrendingUp } from "lucide-react";
 
 const auth = getAuth();
 
@@ -29,13 +29,18 @@ export default function FareManagement() {
   const [toastMessage, setToastMessage] = useState("");
 
   const [currentBaseFare, setCurrentBaseFare] = useState(0);
-  const [currentDiscountPercentage, setCurrentDiscountPercentage] = useState(0);
+  const [currentDiscount, setCurrentDiscount] = useState(0);
+  const [currentDiscountPrice, setCurrentDiscountPrice] = useState(0);
+  const [currentRegRatePerKm, setCurrentRegRatePerKm] = useState(0);
+  const [currentDiscRatePerKm, setCurrentDiscRatePerKm] = useState(0);
   const [currentFareData, setCurrentFareData] = useState(null);
   
   const [newBaseFare, setNewBaseFare] = useState("");
   const [confirmBaseFare, setConfirmBaseFare] = useState("");
-  const [newDiscountPercentage, setNewDiscountPercentage] = useState("");
-  const [confirmDiscountPercentage, setConfirmDiscountPercentage] = useState("");
+  const [newDiscount, setNewDiscount] = useState("");
+  const [confirmDiscount, setConfirmDiscount] = useState("");
+  const [newRegRatePerKm, setNewRegRatePerKm] = useState("");
+  const [confirmRegRatePerKm, setConfirmRegRatePerKm] = useState("");
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -43,10 +48,13 @@ export default function FareManagement() {
   
   const [baseFareMatchError, setBaseFareMatchError] = useState(false);
   const [discountMatchError, setDiscountMatchError] = useState(false);
+  const [regRateMatchError, setRegRateMatchError] = useState(false);
   const [newBaseFareError, setNewBaseFareError] = useState("");
   const [confirmBaseFareError, setConfirmBaseFareError] = useState("");
   const [newDiscountError, setNewDiscountError] = useState("");
   const [confirmDiscountError, setConfirmDiscountError] = useState("");
+  const [newRegRateError, setNewRegRateError] = useState("");
+  const [confirmRegRateError, setConfirmRegRateError] = useState("");
   
   const [password, setPassword] = useState("");
   const [resetPassword, setResetPassword] = useState("");
@@ -97,12 +105,18 @@ export default function FareManagement() {
           const docSnap = snap.docs[0];
           const data = docSnap.data();
           setCurrentBaseFare(parseFloat(data.basePrice) || 0);
-          setCurrentDiscountPercentage(parseFloat(data.discount) || 0);
+          setCurrentDiscount(parseFloat(data.discount) || 0);
+          setCurrentDiscountPrice(parseFloat(data.discountPrice) || 0);
+          setCurrentRegRatePerKm(parseFloat(data.regRatePerKm) || 0);
+          setCurrentDiscRatePerKm(parseFloat(data.discRatePerKm) || 0);
           setCurrentFareData(data);
         } else {
           // If no fare data exists, set defaults
           setCurrentBaseFare(0);
-          setCurrentDiscountPercentage(0);
+          setCurrentDiscount(0);
+          setCurrentDiscountPrice(0);
+          setCurrentRegRatePerKm(0);
+          setCurrentDiscRatePerKm(0);
         }
       } catch (e) {
         console.error("Error fetching fare:", e);
@@ -152,6 +166,26 @@ export default function FareManagement() {
     return formatDate(currentFareData.timestamp.toDate());
   };
 
+  // Calculate discountPrice and discRatePerKm based on inputs
+  // discountPrice = base fare AFTER applying discount (the actual discounted price)
+  // discRatePerKm = regRate - (regRate * discount%)
+  const calculateDiscountedValues = (baseFare, discount, regRate) => {
+    const baseFareNum = parseFloat(baseFare);
+    const discountNum = parseFloat(discount);
+    const regRateNum = parseFloat(regRate);
+    
+    // Calculate discount price as base fare AFTER discount is applied
+    const discountPrice = (baseFareNum - (baseFareNum * (discountNum / 100))).toFixed(2);
+    
+    // Calculate discounted rate per km: regRate - (regRate * discount%)
+    const discRatePerKm = (regRateNum - (regRateNum * (discountNum / 100))).toFixed(2);
+    
+    return { 
+      discountPrice: parseFloat(discountPrice), 
+      discRatePerKm: parseFloat(discRatePerKm) 
+    };
+  };
+
   // Handle saving fare with validation
   const handleSaveFare = async () => {
     // Reset all errors
@@ -159,8 +193,11 @@ export default function FareManagement() {
     setConfirmBaseFareError("");
     setNewDiscountError("");
     setConfirmDiscountError("");
+    setNewRegRateError("");
+    setConfirmRegRateError("");
     setBaseFareMatchError(false);
     setDiscountMatchError(false);
+    setRegRateMatchError(false);
 
     let hasError = false;
 
@@ -182,21 +219,45 @@ export default function FareManagement() {
       hasError = true;
     }
 
-    // Validate new discount percentage field
-    if (!newDiscountPercentage || newDiscountPercentage.trim() === "") {
-      setNewDiscountError("New discount percentage is required");
+    // Validate new discount field
+    if (!newDiscount || newDiscount.trim() === "") {
+      setNewDiscountError("New discount is required");
       hasError = true;
-    } else if (parseFloat(newDiscountPercentage) < 0 || parseFloat(newDiscountPercentage) > 100 || isNaN(parseFloat(newDiscountPercentage))) {
-      setNewDiscountError("Discount percentage must be between 0 and 100");
+    } else if (parseFloat(newDiscount) < 0 || isNaN(parseFloat(newDiscount))) {
+      setNewDiscountError("Discount must be a positive number");
+      hasError = true;
+    } else if (parseFloat(newDiscount) > 100) {
+      setNewDiscountError("Discount percentage cannot exceed 100%");
       hasError = true;
     }
 
-    // Validate confirm discount percentage field
-    if (!confirmDiscountPercentage || confirmDiscountPercentage.trim() === "") {
-      setConfirmDiscountError("Please confirm the new discount percentage");
+    // Validate confirm discount field
+    if (!confirmDiscount || confirmDiscount.trim() === "") {
+      setConfirmDiscountError("Please confirm the new discount");
       hasError = true;
-    } else if (parseFloat(confirmDiscountPercentage) < 0 || parseFloat(confirmDiscountPercentage) > 100 || isNaN(parseFloat(confirmDiscountPercentage))) {
-      setConfirmDiscountError("Discount percentage must be between 0 and 100");
+    } else if (parseFloat(confirmDiscount) < 0 || isNaN(parseFloat(confirmDiscount))) {
+      setConfirmDiscountError("Discount must be a positive number");
+      hasError = true;
+    } else if (parseFloat(confirmDiscount) > 100) {
+      setConfirmDiscountError("Discount percentage cannot exceed 100%");
+      hasError = true;
+    }
+
+    // Validate new regular rate per km field
+    if (!newRegRatePerKm || newRegRatePerKm.trim() === "") {
+      setNewRegRateError("New regular rate per km is required");
+      hasError = true;
+    } else if (parseFloat(newRegRatePerKm) <= 0 || isNaN(parseFloat(newRegRatePerKm))) {
+      setNewRegRateError("Regular rate per km must be a positive number");
+      hasError = true;
+    }
+
+    // Validate confirm regular rate per km field
+    if (!confirmRegRatePerKm || confirmRegRatePerKm.trim() === "") {
+      setConfirmRegRateError("Please confirm the new regular rate per km");
+      hasError = true;
+    } else if (parseFloat(confirmRegRatePerKm) <= 0 || isNaN(parseFloat(confirmRegRatePerKm))) {
+      setConfirmRegRateError("Regular rate per km must be a positive number");
       hasError = true;
     }
 
@@ -206,9 +267,15 @@ export default function FareManagement() {
       hasError = true;
     }
 
-    // Check if discount percentages match (only if both are filled)
-    if (!hasError && newDiscountPercentage !== confirmDiscountPercentage) {
+    // Check if discounts match (only if both are filled)
+    if (!hasError && newDiscount !== confirmDiscount) {
       setDiscountMatchError(true);
+      hasError = true;
+    }
+
+    // Check if regular rates match (only if both are filled)
+    if (!hasError && newRegRatePerKm !== confirmRegRatePerKm) {
+      setRegRateMatchError(true);
       hasError = true;
     }
 
@@ -219,7 +286,7 @@ export default function FareManagement() {
     setIsModalOpen(true);
   };
 
-  // Handle password verification and saving the fare - USING WORKING AUTH FROM QUOTA MANAGEMENT
+  // Handle password verification and saving the fare
   const handlePasswordSubmit = async () => {
     if (!password) {
       setPasswordError("Please enter your password.");
@@ -235,7 +302,8 @@ export default function FareManagement() {
         await reauthenticateWithCredential(user, credential);
 
         const baseFareValue = parseFloat(newBaseFare);
-        const discountValue = parseFloat(newDiscountPercentage);
+        const discountValue = parseFloat(newDiscount);
+        const regRateValue = parseFloat(newRegRatePerKm);
         
         if (isNaN(baseFareValue) || baseFareValue <= 0) {
           setNewBaseFareError("Invalid base fare value");
@@ -245,25 +313,44 @@ export default function FareManagement() {
         }
 
         if (isNaN(discountValue) || discountValue < 0 || discountValue > 100) {
-          setNewDiscountError("Invalid discount percentage value");
+          setNewDiscountError("Invalid discount value");
           setSaving(false);
           setIsModalOpen(false);
           return;
         }
 
-        // Save to 'fares' collection with correct field names
+        if (isNaN(regRateValue) || regRateValue <= 0) {
+          setNewRegRateError("Invalid regular rate per km value");
+          setSaving(false);
+          setIsModalOpen(false);
+          return;
+        }
+
+        // Calculate discountPrice and discRatePerKm
+        const { discountPrice, discRatePerKm } = calculateDiscountedValues(baseFareValue, discountValue, regRateValue);
+
+        // Save to 'fares' collection as numbers (not strings)
         await addDoc(collection(db, "fares"), {
-          basePrice: baseFareValue.toString(),
-          discount: discountValue.toString(),
+          basePrice: baseFareValue,
+          discount: discountValue,
+          discountPrice: discountPrice,
+          regRatePerKm: regRateValue,
+          discRatePerKm: discRatePerKm,
           timestamp: serverTimestamp(),
         });
 
         // Update local state
         setCurrentBaseFare(baseFareValue);
-        setCurrentDiscountPercentage(discountValue);
+        setCurrentDiscount(discountValue);
+        setCurrentDiscountPrice(discountPrice);
+        setCurrentRegRatePerKm(regRateValue);
+        setCurrentDiscRatePerKm(discRatePerKm);
         setCurrentFareData({
-          basePrice: baseFareValue.toString(),
-          discount: discountValue.toString(),
+          basePrice: baseFareValue,
+          discount: discountValue,
+          discountPrice: discountPrice,
+          regRatePerKm: regRateValue,
+          discRatePerKm: discRatePerKm,
           timestamp: { toDate: () => new Date() },
         });
 
@@ -273,23 +360,28 @@ export default function FareManagement() {
           : user.email || "Unknown User";
 
         await logSystemActivity(
-          `Updated base fare to ₱${baseFareValue.toLocaleString()} and discount to ${discountValue}%`,
+          `Updated fare settings: Base ₱${baseFareValue.toLocaleString()}, Discount ${discountValue}%, Reg Rate ₱${regRateValue}/km`,
           userFullName
         );
 
         // Reset form fields
         setNewBaseFare("");
         setConfirmBaseFare("");
-        setNewDiscountPercentage("");
-        setConfirmDiscountPercentage("");
+        setNewDiscount("");
+        setConfirmDiscount("");
+        setNewRegRatePerKm("");
+        setConfirmRegRatePerKm("");
         setPassword("");
         setPasswordError("");
         setNewBaseFareError("");
         setConfirmBaseFareError("");
         setNewDiscountError("");
         setConfirmDiscountError("");
+        setNewRegRateError("");
+        setConfirmRegRateError("");
         setBaseFareMatchError(false);
         setDiscountMatchError(false);
+        setRegRateMatchError(false);
 
         setToastMessage(`Fare settings updated successfully!`);
         setShowSuccessToast(true);
@@ -312,7 +404,7 @@ export default function FareManagement() {
     setIsResetModalOpen(true);
   };
 
-  // Handle reset password verification - USING WORKING AUTH FROM QUOTA MANAGEMENT
+  // Handle reset password verification
   const handleResetPasswordSubmit = async () => {
     if (!resetPassword) {
       setResetPasswordError("Please enter your password.");
@@ -333,14 +425,19 @@ export default function FareManagement() {
         // Reset form fields and enable inputs by clearing current fare data
         setNewBaseFare("");
         setConfirmBaseFare("");
-        setNewDiscountPercentage("");
-        setConfirmDiscountPercentage("");
+        setNewDiscount("");
+        setConfirmDiscount("");
+        setNewRegRatePerKm("");
+        setConfirmRegRatePerKm("");
         setBaseFareMatchError(false);
         setDiscountMatchError(false);
+        setRegRateMatchError(false);
         setNewBaseFareError("");
         setConfirmBaseFareError("");
         setNewDiscountError("");
         setConfirmDiscountError("");
+        setNewRegRateError("");
+        setConfirmRegRateError("");
         setResetPassword("");
         setResetPasswordError("");
 
@@ -394,15 +491,17 @@ export default function FareManagement() {
     return currentFareData !== null && 
            !newBaseFare && 
            !confirmBaseFare && 
-           !newDiscountPercentage && 
-           !confirmDiscountPercentage;
+           !newDiscount && 
+           !confirmDiscount &&
+           !newRegRatePerKm &&
+           !confirmRegRatePerKm;
   };
 
   return (
     <div className="flex bg-gray-100 min-h-screen">
       {/* Main Content */}
       <main className="flex-1 p-10">
-        <div className="mx-auto w-full max-w-[1200px]">
+        <div className="mx-auto w-full max-w-[1400px]">
           <div
             className="bg-white border rounded-xl shadow-sm flex flex-col p-9"
             style={{ minHeight: "calc(70vh - 112px)" }}
@@ -414,35 +513,71 @@ export default function FareManagement() {
             {loading ? (
               <p>Loading...</p>
             ) : (
-              <div className="grid grid-cols-2 gap-10 mt-11">
+              <div className="grid grid-cols-2 gap-10 mt-8">
                 {/* Current Fare Settings */}
-                <div className="flex flex-col items-center justify-center border-r pr-10">
-                  <h2 className="text-lg font-semibold text-gray-600 mb-2 flex items-center gap-2 mt-1">
-                    <Wallet className="w-8 h-8 text-blue-600" />
+                <div className="flex flex-col border-r pr-10">
+                  <h2 className="text-lg font-semibold text-gray-600 mb-6 flex items-center gap-2">
+                    <Wallet className="w-7 h-7 text-blue-600" />
                     Current Fare Settings
                   </h2>
                   
-                  {/* Base Fare */}
-                  <div className="mb-8">
-                    <p className="text-sm text-gray-500 text-center mb-1">Base Fare</p>
-                    <div className="text-5xl font-bold text-gray-800 flex items-center justify-center gap-2">
-                      <span>₱</span>
-                      {currentBaseFare.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
+                  <div className="grid grid-cols-2 gap-6">
+                    {/* Base Fare */}
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-5 border border-blue-200">
+                      <p className="text-xs text-blue-700 font-semibold mb-2">BASE FARE</p>
+                      <div className="text-3xl font-bold text-blue-900 flex items-center gap-2">
+                        <span>₱</span>
+                        {currentBaseFare.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Discount Percentage */}
-                  <div className="mb-8">
-                    <p className="text-sm text-gray-500 text-center mb-1">Discount Percentage</p>
-                    <div className="text-5xl font-bold text-gray-800 flex items-center justify-center gap-2">
-                      {currentDiscountPercentage.toLocaleString(undefined, {
-                        minimumFractionDigits: 1,
-                        maximumFractionDigits: 1,
-                      })}
-                      <Percent className="w-10 h-10" />
+                    {/* Discount */}
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-5 border border-green-200">
+                      <p className="text-xs text-green-700 font-semibold mb-2">DISCOUNT</p>
+                      <div className="text-3xl font-bold text-green-900">
+                        {currentDiscount.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}%
+                      </div>
+                    </div>
+
+                    {/* Discount Price */}
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-5 border border-purple-200">
+                      <p className="text-xs text-purple-700 font-semibold mb-2">DISCOUNT PRICE</p>
+                      <div className="text-2xl font-bold text-purple-900">
+                        ₱{currentDiscountPrice.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Regular Rate Per Km */}
+                    <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-5 border border-orange-200">
+                      <p className="text-xs text-orange-700 font-semibold mb-2">REG RATE/KM</p>
+                      <div className="text-3xl font-bold text-orange-900 flex items-center gap-1">
+                        <span className="text-xl">₱</span>
+                        {currentRegRatePerKm.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Discount Rate Per Km */}
+                    <div className="bg-gradient-to-br from-teal-50 to-teal-100 rounded-xl p-5 border border-teal-200 col-span-2">
+                      <p className="text-xs text-teal-700 font-semibold mb-2">DISCOUNT RATE/KM</p>
+                      <div className="text-3xl font-bold text-teal-900 flex items-center gap-1">
+                        <span className="text-xl">₱</span>
+                        {currentDiscRatePerKm.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </div>
                     </div>
                   </div>
 
@@ -457,7 +592,7 @@ export default function FareManagement() {
                 {/* Fare Change */}
                 <div className="flex flex-col">
                   <div className="flex items-center justify-between mb-2">
-                    <h2 className="text-2xl font-semibold text-gray-600">
+                    <h2 className="text-xl font-semibold text-gray-600">
                       Fare Change
                     </h2>
                     {/* Show reset button only if fare data exists */}
@@ -472,144 +607,238 @@ export default function FareManagement() {
                     )}
                   </div>
 
-                  <p className="text-base text-gray-500 mb-4">
-                    NOTE: If you want to modify the current fare settings, input the new
-                    base fare and discount percentage, then retype them to confirm. This will
-                    add a new fare record and apply to all transactions.
+                  <p className="text-sm text-gray-500 mb-4">
+                    NOTE: Input new base fare, discount percentage (%), and regular rate per km, then confirm each value. The discount price and discount rate per km will be calculated automatically.
                   </p>
 
-                  {/* Base Fare Section */}
-                  <div className="mb-4">
-                    <h3 className="text-lg font-semibold text-gray-700 mb-3">Base Fare</h3>
-                    
-                    <div className="mb-2">
-                      <label className="block text-sm text-gray-600 mb-1">
-                        New Base Fare <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        placeholder="Enter new base fare"
-                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                          newBaseFareError ? "border-red-500" : ""
-                        }`}
-                        value={newBaseFare}
-                        onChange={(e) => {
-                          setNewBaseFare(e.target.value);
-                          setNewBaseFareError("");
-                          setBaseFareMatchError(false);
-                        }}
-                        disabled={shouldDisableFields()}
-                        step="0.01"
-                        min="0"
-                      />
-                      {newBaseFareError && (
-                        <p className="text-red-500 text-xs mt-1 font-semibold">
-                          {newBaseFareError}
-                        </p>
-                      )}
-                    </div>
-
+                  <div className="overflow-y-auto pr-2" style={{ maxHeight: "calc(70vh - 300px)" }}>
+                    {/* Base Fare Section */}
                     <div className="mb-4">
-                      <label className="block text-sm text-gray-600 mb-1">
-                        Confirm New Base Fare <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        placeholder="Confirm new base fare"
-                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                          confirmBaseFareError || baseFareMatchError ? "border-red-500" : ""
-                        }`}
-                        value={confirmBaseFare}
-                        onChange={(e) => {
-                          setConfirmBaseFare(e.target.value);
-                          setConfirmBaseFareError("");
-                          setBaseFareMatchError(false);
-                        }}
-                        disabled={shouldDisableFields()}
-                        step="0.01"
-                        min="0"
-                      />
-                      {confirmBaseFareError && (
-                        <p className="text-red-500 text-xs mt-1 font-semibold">
-                          {confirmBaseFareError}
-                        </p>
-                      )}
-                    </div>
-
-                    {baseFareMatchError && (
-                      <div className="flex items-center space-x-2 mt-2 mb-4">
-                        <p className="text-red-500 text-sm font-semibold">
-                          The base fare values do not match. Please ensure both fields contain the same value.
-                        </p>
+                      <h3 className="text-base font-semibold text-gray-700 mb-2">Base Fare</h3>
+                      
+                      <div className="mb-2">
+                        <label className="block text-sm text-gray-600 mb-1">
+                          New Base Fare <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="Enter new base fare"
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:bg-gray-100 disabled:cursor-not-allowed text-sm ${
+                            newBaseFareError ? "border-red-500" : ""
+                          }`}
+                          value={newBaseFare}
+                          onChange={(e) => {
+                            setNewBaseFare(e.target.value);
+                            setNewBaseFareError("");
+                            setBaseFareMatchError(false);
+                          }}
+                          disabled={shouldDisableFields()}
+                          step="0.01"
+                          min="0"
+                        />
+                        {newBaseFareError && (
+                          <p className="text-red-500 text-xs mt-1 font-semibold">
+                            {newBaseFareError}
+                          </p>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  {/* Discount Percentage Section */}
-                  <div className="mb-4">
-                    <h3 className="text-lg font-semibold text-gray-700 mb-3">Discount Percentage</h3>
-                    
-                    <div className="mb-2">
-                      <label className="block text-sm text-gray-600 mb-1">
-                        New Discount Percentage <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        placeholder="Enter new discount percentage (0-100)"
-                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                          newDiscountError ? "border-red-500" : ""
-                        }`}
-                        value={newDiscountPercentage}
-                        onChange={(e) => {
-                          setNewDiscountPercentage(e.target.value);
-                          setNewDiscountError("");
-                          setDiscountMatchError(false);
-                        }}
-                        disabled={shouldDisableFields()}
-                        step="0.1"
-                        min="0"
-                        max="100"
-                      />
-                      {newDiscountError && (
-                        <p className="text-red-500 text-xs mt-1 font-semibold">
-                          {newDiscountError}
-                        </p>
+                      <div className="mb-3">
+                        <label className="block text-sm text-gray-600 mb-1">
+                          Confirm New Base Fare <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="Confirm new base fare"
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:bg-gray-100 disabled:cursor-not-allowed text-sm ${
+                            confirmBaseFareError || baseFareMatchError ? "border-red-500" : ""
+                          }`}
+                          value={confirmBaseFare}
+                          onChange={(e) => {
+                            setConfirmBaseFare(e.target.value);
+                            setConfirmBaseFareError("");
+                            setBaseFareMatchError(false);
+                          }}
+                          disabled={shouldDisableFields()}
+                          step="0.01"
+                          min="0"
+                        />
+                        {confirmBaseFareError && (
+                          <p className="text-red-500 text-xs mt-1 font-semibold">
+                            {confirmBaseFareError}
+                          </p>
+                        )}
+                      </div>
+
+                      {baseFareMatchError && (
+                        <div className="mb-3">
+                          <p className="text-red-500 text-xs font-semibold">
+                            The base fare values do not match.
+                          </p>
+                        </div>
                       )}
                     </div>
 
-                    <div className="mb-2">
-                      <label className="block text-sm text-gray-600 mb-1">
-                        Confirm New Discount Percentage <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        placeholder="Confirm new discount percentage"
-                        className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                          confirmDiscountError || discountMatchError ? "border-red-500" : ""
-                        }`}
-                        value={confirmDiscountPercentage}
-                        onChange={(e) => {
-                          setConfirmDiscountPercentage(e.target.value);
-                          setConfirmDiscountError("");
-                          setDiscountMatchError(false);
-                        }}
-                        disabled={shouldDisableFields()}
-                        step="0.1"
-                        min="0"
-                        max="100"
-                      />
-                      {confirmDiscountError && (
-                        <p className="text-red-500 text-xs mt-1 font-semibold">
-                          {confirmDiscountError}
-                        </p>
+                    {/* Discount Section */}
+                    <div className="mb-4">
+                      <h3 className="text-base font-semibold text-gray-700 mb-2">Discount (%)</h3>
+                      
+                      <div className="mb-2">
+                        <label className="block text-sm text-gray-600 mb-1">
+                          New Discount Percentage <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="Enter new discount percentage"
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:bg-gray-100 disabled:cursor-not-allowed text-sm ${
+                            newDiscountError ? "border-red-500" : ""
+                          }`}
+                          value={newDiscount}
+                          onChange={(e) => {
+                            setNewDiscount(e.target.value);
+                            setNewDiscountError("");
+                            setDiscountMatchError(false);
+                          }}
+                          disabled={shouldDisableFields()}
+                          step="0.01"
+                          min="0"
+                          max="100"
+                        />
+                        {newDiscountError && (
+                          <p className="text-red-500 text-xs mt-1 font-semibold">
+                            {newDiscountError}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="mb-3">
+                        <label className="block text-sm text-gray-600 mb-1">
+                          Confirm New Discount Percentage <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="Confirm new discount percentage"
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:bg-gray-100 disabled:cursor-not-allowed text-sm ${
+                            confirmDiscountError || discountMatchError ? "border-red-500" : ""
+                          }`}
+                          value={confirmDiscount}
+                          onChange={(e) => {
+                            setConfirmDiscount(e.target.value);
+                            setConfirmDiscountError("");
+                            setDiscountMatchError(false);
+                          }}
+                          disabled={shouldDisableFields()}
+                          step="0.01"
+                          min="0"
+                          max="100"
+                        />
+                        {confirmDiscountError && (
+                          <p className="text-red-500 text-xs mt-1 font-semibold">
+                            {confirmDiscountError}
+                          </p>
+                        )}
+                      </div>
+
+                      {discountMatchError && (
+                        <div className="mb-3">
+                          <p className="text-red-500 text-xs font-semibold">
+                            The discount values do not match.
+                          </p>
+                        </div>
                       )}
                     </div>
 
-                    {discountMatchError && (
-                      <div className="flex items-center space-x-2 mt-2 mb-2">
-                        <p className="text-red-500 text-sm font-semibold">
-                          The discount percentage values do not match. Please ensure both fields contain the same value.
-                        </p>
+                    {/* Regular Rate Per Km Section */}
+                    <div className="mb-4">
+                      <h3 className="text-base font-semibold text-gray-700 mb-2">Regular Rate Per Km</h3>
+                      
+                      <div className="mb-2">
+                        <label className="block text-sm text-gray-600 mb-1">
+                          New Regular Rate Per Km <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="Enter new regular rate per km"
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:bg-gray-100 disabled:cursor-not-allowed text-sm ${
+                            newRegRateError ? "border-red-500" : ""
+                          }`}
+                          value={newRegRatePerKm}
+                          onChange={(e) => {
+                            setNewRegRatePerKm(e.target.value);
+                            setNewRegRateError("");
+                            setRegRateMatchError(false);
+                          }}
+                          disabled={shouldDisableFields()}
+                          step="0.01"
+                          min="0"
+                        />
+                        {newRegRateError && (
+                          <p className="text-red-500 text-xs mt-1 font-semibold">
+                            {newRegRateError}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="mb-3">
+                        <label className="block text-sm text-gray-600 mb-1">
+                          Confirm New Regular Rate Per Km <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="Confirm new regular rate per km"
+                          className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:bg-gray-100 disabled:cursor-not-allowed text-sm ${
+                            confirmRegRateError || regRateMatchError ? "border-red-500" : ""
+                          }`}
+                          value={confirmRegRatePerKm}
+                          onChange={(e) => {
+                            setConfirmRegRatePerKm(e.target.value);
+                            setConfirmRegRateError("");
+                            setRegRateMatchError(false);
+                          }}
+                          disabled={shouldDisableFields()}
+                          step="0.01"
+                          min="0"
+                        />
+                        {confirmRegRateError && (
+                          <p className="text-red-500 text-xs mt-1 font-semibold">
+                            {confirmRegRateError}
+                          </p>
+                        )}
+                      </div>
+
+                      {regRateMatchError && (
+                        <div className="mb-3">
+                          <p className="text-red-500 text-xs font-semibold">
+                            The regular rate per km values do not match.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Calculated Preview */}
+                    {newBaseFare && newDiscount && newRegRatePerKm && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                        <p className="text-xs font-semibold text-blue-700 mb-2">PREVIEW (Auto-calculated)</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs text-blue-600">Discount Price:</p>
+                            <p className="text-lg font-bold text-blue-900">
+                              ₱{calculateDiscountedValues(newBaseFare, newDiscount, newRegRatePerKm).discountPrice.toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-blue-600">Disc Rate/Km:</p>
+                            <p className="text-lg font-bold text-blue-900">
+                              ₱{calculateDiscountedValues(newBaseFare, newDiscount, newRegRatePerKm).discRatePerKm.toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -617,7 +846,7 @@ export default function FareManagement() {
                   <button
                     onClick={handleSaveFare}
                     disabled={shouldDisableFields()}
-                    className="px-5 py-2 rounded-lg text-white shadow-md hover:opacity-95 self-start mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-5 py-2 rounded-lg text-white shadow-md hover:opacity-95 self-start mt-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                     style={{ backgroundColor: primaryColor }}
                   >
                     Save Changes
